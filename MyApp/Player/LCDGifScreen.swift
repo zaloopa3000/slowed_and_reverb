@@ -51,6 +51,14 @@ struct LCDGifScreen: View {
                 }
             }
         }
+        // Bottom ~15% melts into the ambient backdrop below; overlays stay crisp.
+        .mask {
+            LinearGradient(
+                stops: [.init(color: .black, location: 0.85), .init(color: .clear, location: 1)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
         // Light shade under the status bar so the clock / battery stay readable on bright GIFs.
         .overlay(alignment: .top) {
             LinearGradient(colors: [.black.opacity(0.35), .clear], startPoint: .top, endPoint: .bottom)

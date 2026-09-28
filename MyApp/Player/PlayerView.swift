@@ -26,14 +26,16 @@ struct PlayerView: View {
                 gifArea(topInset: geo.safeAreaInsets.top)
                     .frame(height: max(geo.size.height * 0.4, 120))
 
-                controls(unit: unit, vScale: vScale)
-                    .padding(.horizontal, min(20, geo.size.width * 0.05))
+                controls(unit: unit, vScale: vScale, sidePadding: min(20, geo.size.width * 0.05))
                     .frame(maxHeight: .infinity)
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .environment(\.pixelUnit, unit)
         }
-        .background { NightBody().ignoresSafeArea() }
+        .background {
+            GifAmbientBackdrop(gif: gifChannel.currentGIF, channel: gifChannel.number)
+                .ignoresSafeArea()
+        }
         .fileImporter(isPresented: $isImporterPresented, allowedContentTypes: [.audio]) { result in
             if case .success(let url) = result {
                 Task { await engine.importTrack(from: url) }
@@ -102,55 +104,16 @@ struct PlayerView: View {
     }
 
     /// Controls separated by equal flexible gaps, so leftover height is spread evenly.
-    private func controls(unit: CGFloat, vScale: CGFloat) -> some View {
+    /// The bottom display block spans the full width and runs down to the screen edge.
+    private func controls(unit: CGFloat, vScale: CGFloat, sidePadding: CGFloat) -> some View {
         let minGap = 16 * vScale
 
         return VStack(spacing: 0) {
-            Spacer(minLength: minGap * 1.5)
+            upperControls(vScale: vScale, minGap: minGap)
+                .padding(.horizontal, sidePadding)
 
-            SpeakerRow(
-                meter: engine.meter,
-                isPlaying: engine.isPlaying,
-                canRecord: engine.isLoaded,
-                isRecording: exporter.isRecording,
-                onEject: { isImporterPresented = true },
-                onRecord: toggleRecording,
-                height: 48 * vScale
-            )
-
-            Spacer(minLength: minGap)
-
-            VStack(spacing: 8 * vScale) {
-                SteppedSlider(
-                    title: "Speed",
-                    value: $engine.speed,
-                    range: AudioEngine.speedRange,
-                    step: 0.05,
-                    majorEvery: 5,
-                    detents: [10], // 1.00x
-                    valueText: { String(format: "%.2fx", $0) },
-                    tickLabel: { value in
-                        // "1" → "1.0" so the scale reads 0.5 · 0.75 · 1.0 · 1.25 · 1.5
-                        let label = String(format: "%g", value)
-                        return label.contains(".") ? label : label + ".0"
-                    }
-                )
-
-                SteppedSlider(
-                    title: "Reverb",
-                    value: $engine.reverb,
-                    range: AudioEngine.reverbRange,
-                    step: 5,
-                    majorEvery: 5,
-                    valueText: { "\(Int($0.rounded()))%" },
-                    tickLabel: { String(format: "%g", $0) }
-                )
-            }
-
-            Spacer(minLength: minGap)
-
-            // Now playing, timeline and transport keys as one dot-matrix display block.
-            TrackInfoStrip(text: trackText, scale: 1.1) {
+            // Now playing, timeline, transport keys and brand as one edge-to-edge display block.
+            TrackInfoStrip(text: trackText, scale: 1.1, isFullBleed: true) {
                 VStack(spacing: 20 * vScale) {
                     TimelineBar(
                         currentTime: engine.currentTime,
@@ -172,14 +135,59 @@ struct PlayerView: View {
                         height: 92 * vScale,
                         showsHousing: false
                     )
+
+                    NeonBrand()
                 }
             }
+        }
+    }
+
+    /// Level meter row and the Speed / Reverb sliders, with four equal flexible gaps
+    /// (above, between each row, below), so free height is spread evenly between them.
+    private func upperControls(vScale: CGFloat, minGap: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: minGap)
+
+            SpeakerRow(
+                meter: engine.meter,
+                isPlaying: engine.isPlaying,
+                canRecord: engine.isLoaded,
+                isRecording: exporter.isRecording,
+                onEject: { isImporterPresented = true },
+                onRecord: toggleRecording,
+                height: 64 * vScale
+            )
 
             Spacer(minLength: minGap)
 
-            NeonBrand()
+            SteppedSlider(
+                title: "Speed",
+                value: $engine.speed,
+                range: AudioEngine.speedRange,
+                step: 0.05,
+                majorEvery: 5,
+                detents: [10], // 1.00x
+                valueText: { String(format: "%.2fx", $0) },
+                tickLabel: { value in
+                    // "1" → "1.0" so the scale reads 0.5 · 0.75 · 1.0 · 1.25 · 1.5
+                    let label = String(format: "%g", value)
+                    return label.contains(".") ? label : label + ".0"
+                }
+            )
 
-            Spacer(minLength: minGap * 1.5)
+            Spacer(minLength: minGap)
+
+            SteppedSlider(
+                title: "Reverb",
+                value: $engine.reverb,
+                range: AudioEngine.reverbRange,
+                step: 5,
+                majorEvery: 5,
+                valueText: { "\(Int($0.rounded()))%" },
+                tickLabel: { String(format: "%g", $0) }
+            )
+
+            Spacer(minLength: minGap)
         }
     }
 
@@ -203,7 +211,7 @@ struct PlayerView: View {
     }
 }
 
-/// Glowing pink → violet → cyan line under the GIF.
+/// Thin, muted pink → violet → cyan line where the GIF fades into the body.
 private struct NeonDivider: View {
     var body: some View {
         LinearGradient(
@@ -211,9 +219,10 @@ private struct NeonDivider: View {
             startPoint: .leading,
             endPoint: .trailing
         )
-        .frame(height: 1.5)
-        .shadow(color: RetroTheme.neonViolet.opacity(0.9), radius: 4)
-        .shadow(color: RetroTheme.accentRed.opacity(0.5), radius: 10)
+        .frame(height: 1)
+        .shadow(color: RetroTheme.neonViolet.opacity(0.6), radius: 3)
+        .shadow(color: RetroTheme.accentRed.opacity(0.3), radius: 8)
+        .opacity(0.55)
         .allowsHitTesting(false)
     }
 }
@@ -233,29 +242,6 @@ private struct NeonBrand: View {
         }
         .padding(.horizontal, 4)
         .accessibilityHidden(true)
-    }
-}
-
-/// Night-time body: deep indigo gradient, faint pixel stars, and a soft pink glow at the bottom.
-private struct NightBody: View {
-    @Environment(\.displayScale) private var displayScale
-
-    var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [RetroTheme.bodyHighlight, RetroTheme.body, RetroTheme.bodyShadow],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            PixelStarfield(unit: PixelText.snapped(1.5, scale: displayScale))
-                .opacity(0.35)
-            RadialGradient(
-                colors: [RetroTheme.accentRed.opacity(0.22), .clear],
-                center: .bottom,
-                startRadius: 0,
-                endRadius: 320
-            )
-        }
     }
 }
 

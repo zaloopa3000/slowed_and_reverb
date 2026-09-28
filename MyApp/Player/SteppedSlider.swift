@@ -78,10 +78,10 @@ struct SteppedSlider: View {
             .frame(maxWidth: .infinity)
             .background {
                 PixelNotchedRect(step: pixel, steps: 1)
-                    .fill(RetroTheme.lcdGlass.mix(with: .black, by: 0.35))
+                    .fill(RetroTheme.lcdGlass.mix(with: .black, by: 0.35).opacity(0.5))
                     .overlay {
                         PixelNotchedRect(step: pixel, steps: 1)
-                            .stroke(Color.black.opacity(0.7), lineWidth: pixel)
+                            .stroke(Color.black.opacity(0.35), lineWidth: pixel)
                     }
             }
     }

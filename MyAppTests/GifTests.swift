@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Testing
 @testable import MyApp
@@ -103,3 +104,71 @@ struct AnimatedGIFTests {
         #expect(gif.frameIndex(at: 123.4) == 0)
     }
 }
+@Suite("GifAmbience")
+struct GifAmbienceTests {
+    /// Solid-color RGBA image of the given size.
+    private func solidImage(width: Int, height: Int, red: CGFloat, green: CGFloat, blue: CGFloat) throws -> CGImage {
+        let colorSpace = try #require(CGColorSpace(name: CGColorSpace.sRGB))
+        let context = try #require(CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.setFillColor(red: red, green: green, blue: blue, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        return try #require(context.makeImage())
+    }
+
+    /// RGBA bytes of `image`, redrawn into a known layout.
+    private func pixels(of image: CGImage) throws -> [UInt8] {
+        var bytes = [UInt8](repeating: 0, count: image.width * image.height * 4)
+        let colorSpace = try #require(CGColorSpace(name: CGColorSpace.sRGB))
+        try bytes.withUnsafeMutableBytes { buffer in
+            let context = try #require(CGContext(
+                data: buffer.baseAddress, width: image.width, height: image.height, bitsPerComponent: 8,
+                bytesPerRow: image.width * 4, space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ))
+            context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        }
+        return bytes
+    }
+
+    @Test(arguments: [(200, 100), (100, 300), (12, 20), (1, 1)])
+    func thumbnailHasRequestedSize(width: Int, height: Int) throws {
+        let image = try solidImage(width: width, height: height, red: 0, green: 0, blue: 1)
+        let thumbnail = try #require(GifAmbience.thumbnail(of: image))
+        #expect(thumbnail.width == 12)
+        #expect(thumbnail.height == 20)
+    }
+
+    @Test func thumbnailKeepsColorAndFillsEveryPixel() throws {
+        let image = try solidImage(width: 300, height: 120, red: 1, green: 0, blue: 0)
+        let thumbnail = try #require(GifAmbience.thumbnail(of: image))
+        let bytes = try pixels(of: thumbnail)
+        for index in stride(from: 0, to: bytes.count, by: 4) {
+            #expect(bytes[index] > 240)       // red
+            #expect(bytes[index + 1] < 15)    // green
+            #expect(bytes[index + 2] < 15)    // blue
+            #expect(bytes[index + 3] > 240)   // opaque: aspect-fill leaves no gaps
+        }
+    }
+
+    @Test func rejectsEmptyTarget() throws {
+        let image = try solidImage(width: 10, height: 10, red: 1, green: 1, blue: 1)
+        #expect(GifAmbience.thumbnail(of: image, width: 0, height: 20) == nil)
+    }
+
+    @Test func sourceFrameIsTheMiddleFrame() throws {
+        let data = try TestFixtures.makeGIFData(delays: [0.1, 0.1, 0.1])
+        let gif = try #require(AnimatedGIF(data: data, maxPixelSize: 100))
+        #expect(GifAmbience.sourceFrame(of: gif) === gif.frames[1])
+    }
+
+    @Test func sourceFrameOfSingleFrameGIF() throws {
+        let data = try TestFixtures.makeGIFData(delays: [0.5])
+        let gif = try #require(AnimatedGIF(data: data, maxPixelSize: 100))
+        #expect(GifAmbience.sourceFrame(of: gif) === gif.frames[0])
+    }
+}
+

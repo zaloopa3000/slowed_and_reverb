@@ -24,14 +24,14 @@ struct StereoMeterView: View {
 
             VStack(spacing: unit) {
                 row("L", legendWidth: legendWidth, pixel: labelPixel) {
-                    MeterBar(level: display.left, peak: display.leftPeak, pitch: unit * 5.5, maxHeight: unit * 11)
+                    MeterBar(level: display.left, peak: display.leftPeak, pitch: unit * 2.5, maxHeight: unit * 7)
                 }
                 row("dB", legendWidth: legendWidth, pixel: labelPixel) {
                     ScaleRow(pixel: labelPixel)
                 }
                 .fixedSize(horizontal: false, vertical: true)
                 row("R", legendWidth: legendWidth, pixel: labelPixel) {
-                    MeterBar(level: display.right, peak: display.rightPeak, pitch: unit * 5.5, maxHeight: unit * 11)
+                    MeterBar(level: display.right, peak: display.rightPeak, pitch: unit * 2.5, maxHeight: unit * 7)
                 }
             }
         }
@@ -131,17 +131,23 @@ nonisolated enum VUScale {
 }
 
 private enum MeterPalette {
-    static let blue = Color(red: 0.45, green: 0.78, blue: 1.0)
-    static let violet = Color(red: 0.67, green: 0.55, blue: 1.0)
+    static let blue = Color(red: 0.55, green: 0.84, blue: 1.0)
+    static let lavender = Color(red: 0.7, green: 0.76, blue: 1.0)
+    static let violet = Color(red: 0.7, green: 0.56, blue: 1.0)
     static let pink = Color(red: 0.96, green: 0.5, blue: 0.9)
-    static let off = Color.black.opacity(0.5)
+    /// Unlit strokes stay faintly visible, like an idle VFD.
+    static let off = Color.white.opacity(0.07)
     static let peak = Color(red: 0.93, green: 0.9, blue: 1.0)
     static let label = Color(red: 0.72, green: 0.62, blue: 1.0)
 
-    /// Lit segment color: blue → violet up to 0 dB, violet → pink above it.
+    /// Lit segment color: sky blue → pale lavender → violet up to 0 dB, violet → pink above it.
     static func lit(at position: CGFloat) -> Color {
         if position <= VUScale.zeroPosition {
-            return blue.mix(with: violet, by: Double(position / VUScale.zeroPosition))
+            let t = Double(position / VUScale.zeroPosition)
+            // Lavender midpoint keeps the blend pale instead of going through a muddy purple-blue.
+            return t < 0.55
+                ? blue.mix(with: lavender, by: t / 0.55)
+                : lavender.mix(with: violet, by: (t - 0.55) / 0.45)
         }
         let t = (position - VUScale.zeroPosition) / (1 - VUScale.zeroPosition)
         return violet.mix(with: pink, by: Double(t))
@@ -150,7 +156,7 @@ private enum MeterPalette {
 
 // MARK: - Bars
 
-/// One channel: thin vertical strokes, lit ones glowing; centered vertically in a taller row.
+/// One channel: thin vertical strokes with a bright core, lit ones glowing; centered vertically in a taller row.
 private struct MeterBar: View {
     let level: Float
     let peak: Float
@@ -165,10 +171,10 @@ private struct MeterBar: View {
         Canvas { context, size in
             func snap(_ value: CGFloat) -> CGFloat { (value * displayScale).rounded() / displayScale }
 
-            // Wide strokes separated by a hairline gap of 1 device pixel.
+            // Thin strokes, a bit wider than the gap between them.
             let segments = max(Int(size.width / pitch), 10)
             let step = size.width / CGFloat(segments)
-            let segmentWidth = max(snap(step) - 1 / displayScale, 1 / displayScale)
+            let segmentWidth = max(snap(step * 0.6), 1 / displayScale)
             let segmentHeight = snap(min(size.height, maxHeight))
             let y = snap((size.height - segmentHeight) / 2)
 
@@ -186,10 +192,25 @@ private struct MeterBar: View {
             }
 
             context.drawLayer { glow in
-                glow.addFilter(.shadow(color: MeterPalette.violet.opacity(0.85), radius: 3))
+                glow.addFilter(.shadow(color: MeterPalette.violet.opacity(0.7), radius: 2.5))
                 for index in 0..<min(lit, segments) {
                     let position = (CGFloat(index) + 0.5) / CGFloat(segments)
-                    glow.fill(Path(rect(index)), with: .color(MeterPalette.lit(at: position)))
+                    let color = MeterPalette.lit(at: position)
+                    let bounds = rect(index)
+                    // Whitish core fading to the tinted ends, like a glowing VFD filament.
+                    let core = Gradient(stops: [
+                        .init(color: color, location: 0),
+                        .init(color: color.mix(with: .white, by: 0.35), location: 0.5),
+                        .init(color: color, location: 1)
+                    ])
+                    glow.fill(
+                        Path(bounds),
+                        with: .linearGradient(
+                            core,
+                            startPoint: CGPoint(x: bounds.midX, y: bounds.minY),
+                            endPoint: CGPoint(x: bounds.midX, y: bounds.maxY)
+                        )
+                    )
                 }
                 if peakIndex >= lit {
                     glow.fill(Path(rect(peakIndex)), with: .color(MeterPalette.peak))

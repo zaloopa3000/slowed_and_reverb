@@ -6,44 +6,73 @@ struct TrackInfoStrip<Footer: View>: View {
     let text: String
     /// Size multiplier for the title text.
     var scale: CGFloat = 1
+    /// Edge-to-edge panel: spans the full width, and its background runs down under the home indicator.
+    var isFullBleed = false
     @ViewBuilder var footer: () -> Footer
 
     @Environment(\.pixelUnit) private var unit
 
     var body: some View {
         let pixel = unit * scale
-        VStack(spacing: unit * 3) {
+        VStack(spacing: unit * 8) {
             HStack(spacing: pixel * 3) {
-                PixelText("♥", pixel: pixel)
+                PixelText("♥", pixel: pixel * 1.3 )
                 DotMatrixMarquee(text: text, pixel: pixel)
-                PixelText("♥", pixel: pixel)
+                PixelText("♥", pixel: pixel * 1.3 )
             }
             .foregroundStyle(RetroTheme.lcdText)
             .lcdGlow()
             .padding(.horizontal, unit * 4)
-            .padding(.top, unit * 2)
+            .padding(.top, unit * 5)
 
             footer()
         }
-        .padding(.horizontal, unit * 4)
+        // Full-bleed adds the player's side margin, so content lines up with the controls above.
+        .padding(.horizontal, unit * (isFullBleed ? 10 : 4))
         .padding(.top, unit * 6)
         .padding(.bottom, unit * 3.5)
         .background {
-            PixelNotchedRect(step: unit, steps: 2)
-                .fill(RetroTheme.lcdGlass.mix(with: .black, by: 0.35))
-                .overlay {
-                    // Unlit dot grid of the matrix display.
-                    DotGrid(pitch: unit)
-                        .fill(Color.white.opacity(0.05))
-                        .padding(unit * 2)
-                }
-                .overlay {
-                    PixelNotchedRect(step: unit, steps: 2)
-                        .stroke(Color.black.opacity(0.75), lineWidth: unit)
-                }
-                // Light metal lip under the recess.
-                .shadow(color: .white.opacity(0.15), radius: 0, y: 1)
+            if isFullBleed {
+                fullBleedPanel
+            } else {
+                recessedPanel
+            }
         }
+    }
+
+    private var glass: Color { RetroTheme.lcdGlass.mix(with: .black, by: 0.35) }
+
+    /// Unlit dot grid of the matrix display.
+    private var dotGrid: some View {
+        DotGrid(pitch: unit)
+            .fill(Color.white.opacity(0.05))
+            .padding(unit * 2)
+    }
+
+    private var recessedPanel: some View {
+        PixelNotchedRect(step: unit, steps: 2)
+            .fill(glass)
+            .overlay { dotGrid }
+            .overlay {
+                PixelNotchedRect(step: unit, steps: 2)
+                    .stroke(Color.black.opacity(0.75), lineWidth: unit)
+            }
+            // Light metal lip under the recess.
+            .shadow(color: .white.opacity(0.15), radius: 0, y: 1)
+    }
+
+    /// No side or bottom borders — only a dark top edge with a light lip above it.
+    private var fullBleedPanel: some View {
+        Rectangle()
+            .fill(glass)
+            .overlay { dotGrid }
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(Color.black.opacity(0.75))
+                    .frame(height: unit)
+            }
+            .shadow(color: .white.opacity(0.15), radius: 0, y: -1)
+            .ignoresSafeArea(edges: [.bottom, .horizontal])
     }
 }
 
@@ -112,6 +141,16 @@ private struct DotMatrixMarquee: View {
 #Preview("Title only") {
     TrackInfoStrip(text: "Justin Bieber — Yukon", scale: 1.33) { EmptyView() }
         .playerPreview()
+}
+
+#Preview("Full bleed") {
+    VStack {
+        Spacer()
+        TrackInfoStrip(text: "Justin Bieber — Yukon", scale: 1.1, isFullBleed: true) {
+            TimelineBar(currentTime: 42, duration: 180, onSeek: { _ in })
+        }
+    }
+    .playerPreview(padding: 0)
 }
 
 #Preview("With timeline") {
