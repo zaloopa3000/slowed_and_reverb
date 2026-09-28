@@ -9,20 +9,9 @@ nonisolated enum GiphyService {
         case badResponse
         case noGIF
         case undecodable
-        case missingAPIKey
     }
 
-    /// Read from `MyApp/Secrets.plist` (git-ignored; template in `Secrets.example.plist`),
-    /// so the key never lands in the repository.
-    private static let apiKey: String? = {
-        guard let url = Bundle.main.url(forResource: "Secrets", withExtension: "plist"),
-              let data = try? Data(contentsOf: url),
-              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
-              let key = plist["GiphyAPIKey"] as? String,
-              !key.isEmpty
-        else { return nil }
-        return key
-    }()
+    private static let apiKey = "YUC2xffXdOzJP7JRlLH84mNu1Gt9Zmx7"
     private static let endpoint = URL(string: "https://api.giphy.com/v1/gifs/search")!
 
     /// All anime; varied so consecutive GIFs don't feel repetitive.
@@ -37,9 +26,6 @@ nonisolated enum GiphyService {
     /// Downloads and decodes a random anime GIF, off the main actor.
     @concurrent
     static func randomGIF(maxPixelSize: Int = 400) async throws -> AnimatedGIF {
-        // No key → the screen shows "No signal" instead of failing requests.
-        guard let apiKey else { throw Failure.missingAPIKey }
-
         var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)
         components?.queryItems = [
             URLQueryItem(name: "api_key", value: apiKey),
