@@ -53,6 +53,15 @@ extension View {
     func lcdGlow(_ color: Color = RetroTheme.lcdText, radius: CGFloat = 3) -> some View {
         shadow(color: color.opacity(0.55), radius: radius)
     }
+
+    /// Preview wrapper for player components: a realistic `pixelUnit` (they size
+    /// everything from it) on the player's body color.
+    func playerPreview(unit: CGFloat = 2) -> some View {
+        environment(\.pixelUnit, unit)
+            .padding(20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(RetroTheme.body)
+    }
 }
 
 /// Fine horizontal lines for an LCD / CRT texture.
@@ -72,4 +81,24 @@ struct Scanlines: View {
         }
         .allowsHitTesting(false)
     }
+}
+
+#Preview {
+    VStack(spacing: 16) {
+        HStack(spacing: 8) {
+            ForEach(
+                [RetroTheme.lcdText, RetroTheme.accentRed, RetroTheme.neonViolet, RetroTheme.text, RetroTheme.plastic],
+                id: \.self
+            ) { color in
+                RoundedRectangle(cornerRadius: 4).fill(color).frame(width: 40, height: 40)
+            }
+        }
+        PixelText("LCD glow", pixel: 3)
+            .foregroundStyle(RetroTheme.lcdText)
+            .lcdGlow()
+        Scanlines()
+            .frame(height: 40)
+            .background(RetroTheme.lcdGlass)
+    }
+    .playerPreview()
 }

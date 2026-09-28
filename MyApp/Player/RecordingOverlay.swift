@@ -73,3 +73,9 @@ struct ShareSheet: UIViewControllerRepresentable {
 
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
+
+#Preview {
+    RecordingOverlay(progress: 0.42)
+        .frame(height: 300)
+        .playerPreview()
+}

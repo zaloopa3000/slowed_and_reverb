@@ -32,6 +32,11 @@ struct AudioExporterFileNameTests {
         #expect(name("  lots   of \t space  ") == "lots of space.m4a")
     }
 
+    @Test func customExtension() {
+        let name = AudioExporter.fileName(title: "Song", settings: .init(speed: 0.8, reverb: 40), fileExtension: "mp4")
+        #expect(name == "Song (slowed + reverb).mp4")
+    }
+
     @Test func emptyTitleFallsBackToTape() {
         #expect(name("") == "Tape.m4a")
         #expect(name("///") == "Tape.m4a")
@@ -97,6 +102,22 @@ struct AudioExporterExportTests {
             .appending(path: "Exports", directoryHint: .isDirectory)
             .appending(path: AudioExporter.fileName(title: title, settings: settings))
         #expect(!FileManager.default.fileExists(atPath: expected.path(percentEncoded: false)))
+    }
+
+    @Test func writesToExplicitDestination() async throws {
+        let source = try TestFixtures.makeAudioFile(duration: 0.2)
+        let destination = FileManager.default.temporaryDirectory.appending(path: "dest-\(UUID().uuidString).m4a")
+        defer { try? FileManager.default.removeItem(at: destination) }
+
+        let output = try await AudioExporter.export(
+            source: source,
+            title: "Ignored",
+            settings: .init(speed: 1, reverb: 0),
+            destination: destination,
+            progress: { _ in }
+        )
+        #expect(output == destination)
+        #expect(FileManager.default.fileExists(atPath: destination.path(percentEncoded: false)))
     }
 
     @Test func missingSourceThrows() async {

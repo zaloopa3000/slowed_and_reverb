@@ -97,3 +97,11 @@ private struct DotMatrixMarquee: View {
             .accessibilityLabel(text)
     }
 }
+
+#Preview {
+    VStack(spacing: 24) {
+        TrackInfoStrip(text: "Song")
+        TrackInfoStrip(text: "A very long song title that has to scroll — Some Artist")
+    }
+    .playerPreview()
+}

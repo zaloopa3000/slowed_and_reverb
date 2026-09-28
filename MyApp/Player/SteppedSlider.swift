@@ -15,10 +15,14 @@ struct SteppedSlider: View {
     let tickLabel: (Float) -> String
 
     @State private var isDragging = false
+    @Environment(\.pixelUnit) private var unit
+    @Environment(\.displayScale) private var displayScale
 
-    private let knobSize = CGSize(width: 20, height: 28)
-    private let trackHeight: CGFloat = 48
+    // Sizes follow the pixel unit (≈2 pt on a regular iPhone) so the fader scales with the screen.
+    private var knobSize: CGSize { CGSize(width: unit * 10, height: unit * 14) }
+    private var trackHeight: CGFloat { unit * 24 }
     private var grooveY: CGFloat { knobSize.height / 2 + 1 }
+    private var labelPixel: CGFloat { PixelText.snapped(unit * 0.5, scale: displayScale) }
 
     private var stepCount: Int {
         Int(((range.upperBound - range.lowerBound) / step).rounded())
@@ -39,13 +43,13 @@ struct SteppedSlider: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(title)
-                    .lcdText(10, color: RetroTheme.text.opacity(0.75))
+        HStack(alignment: .top, spacing: unit * 6) {
+            VStack(alignment: .leading, spacing: unit * 2.5) {
+                PixelText(title, pixel: unit * 0.8)
+                    .foregroundStyle(RetroTheme.text.opacity(0.75))
                 readout
             }
-            .frame(width: 66, alignment: .leading)
+            .frame(width: unit * 33, alignment: .leading)
 
             track
         }
@@ -64,13 +68,11 @@ struct SteppedSlider: View {
     // MARK: Readout
 
     private var readout: some View {
-        Text(valueText(value))
-            .font(RetroTheme.pixel(13, weight: .bold))
-            .monospacedDigit()
-            .contentTransition(.numericText())
+        PixelText(valueText(value), pixel: unit, bold: true)
             .foregroundStyle(RetroTheme.lcdText)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
+            .lcdGlow(radius: 2)
+            .padding(.horizontal, unit * 3)
+            .padding(.vertical, unit * 1.5)
             .frame(maxWidth: .infinity)
             .background(RoundedRectangle(cornerRadius: 4).fill(RetroTheme.lcdGlass))
             .overlay(
@@ -167,10 +169,20 @@ struct SteppedSlider: View {
                 )
 
                 if isMajor {
-                    let label = Text(tickLabel(value(at: i)))
-                        .font(RetroTheme.pixel(8, weight: .semibold))
-                        .foregroundStyle(RetroTheme.text.opacity(i == currentIndex ? 1 : 0.6))
-                    context.draw(label, at: CGPoint(x: x, y: tickTop + length + 7))
+                    // Pixel-font label centered under the tick.
+                    let label = tickLabel(value(at: i))
+                    let labelSize = CGSize(
+                        width: CGFloat(PixelFont.width(of: label)) * labelPixel,
+                        height: CGFloat(PixelFont.glyphHeight) * labelPixel
+                    )
+                    let origin = CGPoint(
+                        x: ((x - labelSize.width / 2) * displayScale).rounded() / displayScale,
+                        y: tickTop + length + unit * 1.5
+                    )
+                    context.fill(
+                        PixelTextShape(text: label, pixel: labelPixel).path(in: CGRect(origin: origin, size: labelSize)),
+                        with: .color(RetroTheme.text.opacity(i == currentIndex ? 1 : 0.6))
+                    )
                 }
             }
         }
@@ -242,6 +254,5 @@ private struct FaderKnob: View {
             tickLabel: { String(format: "%g", $0) }
         )
     }
-    .padding(24)
-    .background(RetroTheme.body)
+    .playerPreview()
 }

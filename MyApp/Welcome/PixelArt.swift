@@ -262,3 +262,19 @@ struct BlinkingPixelText: View {
         .accessibilityLabel(text)
     }
 }
+
+#Preview {
+    VStack(spacing: 24) {
+        PixelCassetteSprite(cell: 6)
+        BlinkingPixelText(text: "Press start", pixel: 3)
+            .foregroundStyle(RetroTheme.Arcade.yellow)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background {
+        ZStack {
+            RetroTheme.Arcade.background
+            PixelStarfield(unit: 2)
+        }
+        .ignoresSafeArea()
+    }
+}

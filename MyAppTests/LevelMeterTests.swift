@@ -55,3 +55,40 @@ struct LevelMeterTests {
         #expect(meter.level(at: start) == .silence)
     }
 }
+
+@Suite("LevelMeter.levels")
+struct LevelMeterLevelsTests {
+    @Test func silenceReadsFloor() {
+        #expect(LevelMeter.decibels(rms: 0) == LevelMeter.floor)
+        #expect(LevelMeter.decibels(rms: 1e-9) == LevelMeter.floor)
+    }
+
+    @Test func calibrationPutsLoudMixAtZero() {
+        // -14 dBFS RMS reads as 0 on the meter.
+        let rms = Float(pow(10, -14.0 / 20))
+        #expect(abs(LevelMeter.decibels(rms: rms)) < 0.001)
+    }
+
+    @Test func splitsIntoChunksPerChannel() {
+        // 5 frames, chunks of 2 → 3 chunks (the last one is short).
+        let left: [Float] = [1, 1, 0, 0, 0.5]
+        let right: [Float] = [0, 0, 1, 1, 0.5]
+        let levels = left.withUnsafeBufferPointer { l in
+            right.withUnsafeBufferPointer { r in
+                LevelMeter.levels(left: l, right: r, chunkFrames: 2)
+            }
+        }
+        #expect(levels.count == 3)
+        #expect(abs(levels[0].left - LevelMeter.decibels(rms: 1)) < 0.001)
+        #expect(levels[0].right == LevelMeter.floor)
+        #expect(levels[1].left == LevelMeter.floor)
+        #expect(abs(levels[1].right - LevelMeter.decibels(rms: 1)) < 0.001)
+        #expect(abs(levels[2].left - levels[2].right) < 0.001)
+    }
+
+    @Test func emptyInputGivesNoChunks() {
+        let empty: [Float] = []
+        let levels = empty.withUnsafeBufferPointer { LevelMeter.levels(left: $0, right: $0, chunkFrames: 10) }
+        #expect(levels.isEmpty)
+    }
+}

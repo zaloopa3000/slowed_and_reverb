@@ -89,27 +89,48 @@ struct StaticNoise: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1.0 / 15)) { context in
             // New pattern each frame, deterministic within a frame.
-            var generator = SplitMix64(seed: UInt64(context.date.timeIntervalSinceReferenceDate * 15))
+            let seed = UInt64(context.date.timeIntervalSinceReferenceDate * 15)
             Canvas { canvas, size in
                 let columns = Int(size.width / pixel) + 1
                 let rows = Int(size.height / pixel) + 1
-                for row in 0..<rows {
-                    for column in 0..<columns {
-                        let brightness = Double(generator.next() % 256) / 255
-                        canvas.fill(
-                            Path(CGRect(x: CGFloat(column) * pixel, y: CGFloat(row) * pixel, width: pixel, height: pixel)),
-                            with: .color(Color(white: brightness * 0.85))
-                        )
-                    }
-                }
+                guard let noise = Self.noiseImage(columns: columns, rows: rows, seed: seed) else { return }
+                // One tiny image, scaled up without smoothing, instead of thousands of rects per frame.
+                canvas.draw(
+                    Image(decorative: noise, scale: 1).interpolation(.none),
+                    in: CGRect(x: 0, y: 0, width: CGFloat(columns) * pixel, height: CGFloat(rows) * pixel)
+                )
             }
         }
         .accessibilityHidden(true)
     }
+
+    /// Grayscale image with one random pixel per noise cell, capped at 85% white.
+    nonisolated static func noiseImage(columns: Int, rows: Int, seed: UInt64) -> CGImage? {
+        guard columns > 0, rows > 0 else { return nil }
+        var generator = SplitMix64(seed: seed)
+        var bytes = [UInt8](repeating: 0, count: columns * rows)
+        for index in bytes.indices {
+            bytes[index] = UInt8(Double(generator.next() % 256) * 0.85)
+        }
+        guard let provider = CGDataProvider(data: Data(bytes) as CFData) else { return nil }
+        return CGImage(
+            width: columns,
+            height: rows,
+            bitsPerComponent: 8,
+            bitsPerPixel: 8,
+            bytesPerRow: columns,
+            space: CGColorSpaceCreateDeviceGray(),
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: false,
+            intent: .defaultIntent
+        )
+    }
 }
 
 /// Tiny fast PRNG so noise frames are cheap and reproducible.
-private struct SplitMix64 {
+private nonisolated struct SplitMix64 {
     private var state: UInt64
 
     init(seed: UInt64) {
@@ -123,4 +144,14 @@ private struct SplitMix64 {
         z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
         return z ^ (z >> 31)
     }
+}
+
+#Preview {
+    VStack(spacing: 0) {
+        LCDGifScreen(channel: GifChannel(), rate: 1)
+            .frame(height: 300)
+        StaticNoise(pixel: 3)
+            .frame(height: 120)
+    }
+    .playerPreview()
 }
