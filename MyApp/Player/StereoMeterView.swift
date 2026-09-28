@@ -281,11 +281,3 @@ final class MeterBallistics {
         }
     }
 }
-
-#Preview {
-    let meter = LevelMeter()
-    meter.push([StereoLevel(left: -3, right: -8)], chunkDuration: 60)
-    return StereoMeterView(meter: meter, isPlaying: true)
-        .frame(height: 80)
-        .playerPreview()
-}

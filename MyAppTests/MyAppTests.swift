@@ -1,7 +1,6 @@
 import AVFoundation
 import CoreGraphics
 import ImageIO
-import Testing
 import UniformTypeIdentifiers
 
 /// Shared fixtures for the unit tests: small generated audio files and GIFs.

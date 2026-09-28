@@ -1,98 +1,66 @@
 import SwiftUI
 
-/// Row under the GIF: stereo L/R meter, status LED and round EJECT / REC keys.
+/// Speaker grille slice + status LED + round EJECT / REC keys
+/// (in the spot where the reference has VOL+ / VOL−).
 struct SpeakerRow: View {
-    let meter: LevelMeter
     let isPlaying: Bool
     let canRecord: Bool
-    var isRecording = false
     let onEject: () -> Void
     let onRecord: () -> Void
-    let height: CGFloat
-
-    @Environment(\.pixelUnit) private var unit
 
     var body: some View {
-        // Keys shrink with the row on short screens.
-        let keySize = min(height * 0.62, unit * 24)
+        HStack(spacing: 12) {
+            Image(.speakerGrille)
+                .resizable()
+                .scaledToFill()
+                .frame(height: 30)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .clipped()
 
-        HStack(spacing: unit * 5) {
-            StereoMeterView(meter: meter, isPlaying: isPlaying)
+            StatusLED(isOn: isPlaying)
 
-            VStack(spacing: unit * 3) {
-                StatusLED(isOn: isPlaying || isRecording, size: unit * 5)
-
-                HStack(spacing: unit * 4) {
-                    roundKey(symbol: "eject.fill", title: "Eject", size: keySize, action: onEject)
-                        .accessibilityLabel("Eject")
-                        .accessibilityHint("Load another track")
-
-                    roundKey(symbol: "record.circle", title: "Rec", size: keySize, isLit: isRecording, action: onRecord)
-                        .disabled(!canRecord && !isRecording)
-                        .accessibilityLabel(isRecording ? "Stop recording" : "Record")
-                        .accessibilityHint(isRecording ? "" : "Save the slowed track as a file")
-                }
-            }
+            roundKey(symbol: "eject.fill", title: "Eject", action: onEject)
+            roundKey(symbol: "record.circle", title: "Rec", action: onRecord)
+                .disabled(!canRecord)
         }
-        .frame(height: height)
+        .frame(height: 50)
     }
 
-    private func roundKey(
-        symbol: String,
-        title: String,
-        size: CGFloat,
-        isLit: Bool = false,
-        action: @escaping () -> Void
-    ) -> some View {
+    private func roundKey(symbol: String, title: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            let label = VStack(spacing: unit) {
+            VStack(spacing: 1) {
                 Image(systemName: symbol)
-                    .font(.system(size: size * 0.3, weight: .bold))
-                PixelText(title, pixel: unit * 0.6)
+                    .font(.system(size: 11, weight: .bold))
+                Text(title)
+                    .font(RetroTheme.pixel(7, weight: .bold))
+                    .textCase(.uppercase)
             }
-            .frame(width: size, height: size)
-
-            // A lit REC key glows pink while recording.
-            if isLit {
-                label
-                    .foregroundStyle(RetroTheme.accentRed)
-                    .lcdGlow(RetroTheme.accentRed, radius: 4)
-            } else {
-                label
-            }
+            .frame(width: 44, height: 40)
         }
-        .buttonStyle(PhysicalKeyStyle(cornerRadius: size / 2, thickness: 3.5, isLatched: isLit))
+        .buttonStyle(PhysicalKeyStyle(cornerRadius: 22, thickness: 3.5))
+        .accessibilityLabel(title)
     }
 }
 
-/// Small pink LED that glows while playing or recording.
+/// Small red LED that glows while playing.
 struct StatusLED: View {
     let isOn: Bool
-    var size: CGFloat = 10
 
     var body: some View {
         Circle()
             .fill(isOn ? RetroTheme.accentRed : RetroTheme.accentRed.mix(with: .black, by: 0.65))
-            .frame(width: size, height: size)
+            .frame(width: 10, height: 10)
             .overlay(alignment: .topLeading) {
                 // Specular highlight on the LED dome.
                 Circle()
                     .fill(Color.white.opacity(isOn ? 0.75 : 0.25))
-                    .frame(width: size * 0.3, height: size * 0.3)
-                    .offset(x: size * 0.2, y: size * 0.2)
+                    .frame(width: 3, height: 3)
+                    .offset(x: 2, y: 2)
             }
             .overlay(Circle().strokeBorder(Color.black.opacity(0.6), lineWidth: 1))
-            .shadow(color: RetroTheme.accentRed.opacity(isOn ? 0.9 : 0), radius: size * 0.6)
-            .shadow(color: RetroTheme.accentRed.opacity(isOn ? 0.5 : 0), radius: size * 1.4)
+            .shadow(color: RetroTheme.accentRed.opacity(isOn ? 0.9 : 0), radius: 6)
+            .shadow(color: RetroTheme.accentRed.opacity(isOn ? 0.5 : 0), radius: 14)
             .animation(.easeInOut(duration: 0.25), value: isOn)
             .accessibilityHidden(true)
     }
-}
-
-#Preview {
-    VStack(spacing: 24) {
-        SpeakerRow(meter: LevelMeter(), isPlaying: false, canRecord: true, onEject: {}, onRecord: {}, height: 86)
-        SpeakerRow(meter: LevelMeter(), isPlaying: true, canRecord: true, isRecording: true, onEject: {}, onRecord: {}, height: 86)
-    }
-    .playerPreview()
 }

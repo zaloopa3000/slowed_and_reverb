@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Tape-deck transport block: wide Play key, stacked ▶▶ / ◀◀, tall Stop — all in a dark
-/// recessed housing. Tapping ▶▶ / ◀◀ skips 10 s; holding it winds the tape.
+/// Tape-deck transport block laid out like the reference:
+/// wide Play key, stacked ▶▶ / ◀◀, tall Stop — all in a dark recessed housing.
 struct TransportButtons: View {
     let isPlaying: Bool
     let isEnabled: Bool
@@ -9,53 +9,35 @@ struct TransportButtons: View {
     let onForward: () -> Void
     let onRewind: () -> Void
     let onStop: () -> Void
-    /// Called with 1 / -1 when a wind key is held, and 0 when it's released.
-    let onWind: (Int) -> Void
-    let height: CGFloat
 
     var body: some View {
-        let gap = height * 0.08
-        let padding = height * 0.1
-
-        HStack(spacing: gap) {
+        HStack(spacing: 9) {
             Button(action: onPlayPause) {
-                glyph(isPlaying ? "pause.fill" : "play.fill", size: height * 0.26)
+                glyph(isPlaying ? "pause.fill" : "play.fill", size: 30)
                     .contentTransition(.symbolEffect(.replace))
             }
             // Play latches down while the tape is running, like a real deck.
             .buttonStyle(PhysicalKeyStyle(cornerRadius: 14, isLatched: isPlaying))
             .accessibilityLabel(isPlaying ? "Pause" : "Play")
 
-            VStack(spacing: gap) {
-                WindKey(
-                    symbol: "forward.fill",
-                    glyphSize: height * 0.15,
-                    direction: 1,
-                    onTap: onForward,
-                    onWind: onWind
-                )
-                .accessibilityLabel("Forward 10 seconds")
-                .accessibilityHint("Hold to fast-forward")
+            VStack(spacing: 9) {
+                Button(action: onForward) { glyph("forward.fill", size: 17) }
+                    .buttonStyle(PhysicalKeyStyle(cornerRadius: 12, thickness: 4))
+                    .accessibilityLabel("Forward 10 seconds")
 
-                WindKey(
-                    symbol: "backward.fill",
-                    glyphSize: height * 0.15,
-                    direction: -1,
-                    onTap: onRewind,
-                    onWind: onWind
-                )
-                .accessibilityLabel("Back 10 seconds")
-                .accessibilityHint("Hold to rewind")
+                Button(action: onRewind) { glyph("backward.fill", size: 17) }
+                    .buttonStyle(PhysicalKeyStyle(cornerRadius: 12, thickness: 4))
+                    .accessibilityLabel("Back 10 seconds")
             }
-            .frame(width: height * 0.8)
+            .frame(width: 92)
 
-            Button(action: onStop) { glyph("stop.fill", size: height * 0.19) }
+            Button(action: onStop) { glyph("stop.fill", size: 22) }
                 .buttonStyle(PhysicalKeyStyle(cornerRadius: 14))
-                .frame(width: height * 0.6)
+                .frame(width: 70)
                 .accessibilityLabel("Stop")
         }
-        .padding(padding)
-        .frame(height: height)
+        .padding(11)
+        .frame(height: 118)
         .background { housing }
         .disabled(!isEnabled)
     }
@@ -90,83 +72,4 @@ struct TransportButtons: View {
                 )
             }
     }
-}
-
-/// ▶▶ / ◀◀ key: a tap skips, a hold winds until release (the key stays latched meanwhile).
-///
-/// The button's tap and the drag's end both arrive on release, in either order,
-/// so a small state machine makes sure a hold never also counts as a tap.
-private struct WindKey: View {
-    let symbol: String
-    let glyphSize: CGFloat
-    let direction: Int
-    let onTap: () -> Void
-    let onWind: (Int) -> Void
-
-    private enum PressState {
-        case idle
-        /// Held long enough: the tape is winding.
-        case winding
-        /// Winding just stopped; swallow the release's tap.
-        case wound
-    }
-
-    @State private var state = PressState.idle
-
-    private static let holdDuration = 0.35
-
-    var body: some View {
-        Button {
-            switch state {
-            case .idle: onTap()
-            case .winding: finishWinding()
-            case .wound: state = .idle
-            }
-        } label: {
-            Image(systemName: symbol)
-                .font(.system(size: glyphSize, weight: .semibold))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .buttonStyle(PhysicalKeyStyle(cornerRadius: 12, thickness: 4, isLatched: state == .winding))
-        .simultaneousGesture(
-            LongPressGesture(minimumDuration: Self.holdDuration)
-                .onEnded { _ in
-                    state = .winding
-                    onWind(direction)
-                }
-        )
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in
-                    // A new press after a hold whose tap never arrived (finger slid off).
-                    if state == .wound { state = .idle }
-                }
-                .onEnded { _ in
-                    switch state {
-                    case .idle: break
-                    case .winding: finishWinding()
-                    case .wound: state = .idle
-                    }
-                }
-        )
-    }
-
-    private func finishWinding() {
-        onWind(0)
-        state = .wound
-    }
-}
-
-#Preview {
-    TransportButtons(
-        isPlaying: true,
-        isEnabled: true,
-        onPlayPause: {},
-        onForward: {},
-        onRewind: {},
-        onStop: {},
-        onWind: { _ in },
-        height: 118
-    )
-    .playerPreview()
 }
