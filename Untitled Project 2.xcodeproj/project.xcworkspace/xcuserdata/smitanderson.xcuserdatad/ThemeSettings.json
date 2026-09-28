@@ -1,0 +1,12 @@
+{
+  "dark" : {
+    "classicTheme" : {
+      "name" : "High Contrast (Dark).xccolortheme"
+    }
+  },
+  "light" : {
+    "default" : {
+
+    }
+  }
+}

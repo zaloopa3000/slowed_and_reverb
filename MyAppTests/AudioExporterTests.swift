@@ -39,7 +39,7 @@ struct AudioExporterFileNameTests {
 }
 
 /// Thread-safe collector for progress callbacks coming off the main actor.
-private final class ProgressLog: Sendable {
+private nonisolated final class ProgressLog: Sendable {
     private let storage = Mutex<[Double]>([])
 
     var values: [Double] { storage.withLock { $0 } }
