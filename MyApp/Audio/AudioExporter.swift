@@ -54,7 +54,8 @@ nonisolated enum AudioExporter {
         try engine.start()
         defer { engine.stop() }
 
-        player.scheduleFile(input, at: nil)
+        // The explicit nil handler picks the non-async overload: the async one would wait for playback to end.
+        player.scheduleFile(input, at: nil, completionHandler: nil)
         try player.playCompat()
 
         let outputURL = try destination ?? makeOutputURL(title: title, settings: settings)
