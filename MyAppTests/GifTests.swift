@@ -96,10 +96,45 @@ struct AnimatedGIFTests {
         #expect(gif.frameIndex(at: time) == expected)
     }
 
+    @Test func respectsMemoryBudgetButKeepsFirstFrame() throws {
+        let data = try TestFixtures.makeGIFData(delays: Array(repeating: 0.1, count: 6))
+        // An 8×8 RGBA frame takes at least 256 bytes, so a 1-byte budget still keeps one frame.
+        let gif = try #require(AnimatedGIF(data: data, maxPixelSize: 100, maxBytes: 1))
+        #expect(gif.frames.count == 1)
+        #expect(gif.delays.count == 1)
+    }
+
+    @Test func frameMatchesFrameIndex() throws {
+        let data = try TestFixtures.makeGIFData(delays: [0.2, 0.3])
+        let gif = try #require(AnimatedGIF(data: data, maxPixelSize: 100))
+        #expect(gif.frame(at: 0.25) === gif.frames[1])
+    }
+
     @Test func singleFrameAlwaysShowsFirstFrame() throws {
         let data = try TestFixtures.makeGIFData(delays: [0.5])
         let gif = try #require(AnimatedGIF(data: data, maxPixelSize: 100))
         #expect(gif.frameIndex(at: 0) == 0)
         #expect(gif.frameIndex(at: 123.4) == 0)
+    }
+}
+
+@Suite("StaticNoise")
+struct StaticNoiseTests {
+    @Test func imageHasOnePixelPerCell() throws {
+        let image = try #require(StaticNoise.noiseImage(columns: 12, rows: 5, seed: 1))
+        #expect(image.width == 12)
+        #expect(image.height == 5)
+    }
+
+    @Test func sameSeedGivesSamePattern() throws {
+        let a = try #require(StaticNoise.noiseImage(columns: 8, rows: 8, seed: 42)?.dataProvider?.data as Data?)
+        let b = try #require(StaticNoise.noiseImage(columns: 8, rows: 8, seed: 42)?.dataProvider?.data as Data?)
+        let c = try #require(StaticNoise.noiseImage(columns: 8, rows: 8, seed: 43)?.dataProvider?.data as Data?)
+        #expect(a == b)
+        #expect(a != c)
+    }
+
+    @Test func emptySizeGivesNoImage() {
+        #expect(StaticNoise.noiseImage(columns: 0, rows: 4, seed: 1) == nil)
     }
 }

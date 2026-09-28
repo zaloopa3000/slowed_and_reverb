@@ -89,3 +89,11 @@ struct TimelineBar: View {
         Duration.seconds(time.rounded(.down)).formatted(.time(pattern: .minuteSecond))
     }
 }
+
+#Preview {
+    VStack(spacing: 24) {
+        TimelineBar(currentTime: 42, duration: 180, onSeek: { _ in })
+        TimelineBar(currentTime: 0, duration: 0, onSeek: { _ in })
+    }
+    .playerPreview()
+}
