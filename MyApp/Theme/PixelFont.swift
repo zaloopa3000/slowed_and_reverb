@@ -212,11 +212,6 @@ struct PixelText: View {
     static func snapped(_ pixel: CGFloat, scale: CGFloat) -> CGFloat {
         max((pixel * scale).rounded(), 1) / scale
     }
-
-    /// Like `snapped`, but never rounds up, so content sized from it always fits its container.
-    static func snappedDown(_ pixel: CGFloat, scale: CGFloat) -> CGFloat {
-        max((pixel * scale).rounded(.down), 1) / scale
-    }
 }
 
 extension View {
@@ -224,14 +219,4 @@ extension View {
     func pixelShadow(_ color: Color = .black.opacity(0.6), offset: CGFloat = 1) -> some View {
         shadow(color: color, radius: 0, x: offset, y: offset)
     }
-}
-
-#Preview {
-    VStack(alignment: .leading, spacing: 12) {
-        PixelText("Slowed + Reverb", pixel: 3, bold: true)
-        PixelText("Замедлить и добавить реверб", pixel: 2)
-        PixelText("0123456789 -:+%", pixel: 2)
-    }
-    .foregroundStyle(RetroTheme.lcdText)
-    .playerPreview()
 }

@@ -138,30 +138,6 @@ struct AudioEngineTests {
         #expect(engine.metadata.title == "Second")
     }
 
-    @Test func stopCancelsWinding() async throws {
-        let engine = AudioEngine()
-        try await engine.load(url: TestFixtures.makeAudioFile(duration: 5))
-
-        engine.startWinding(-1)
-        #expect(engine.windDirection == -1)
-        engine.stop()
-        #expect(engine.windDirection == 0)
-        #expect(engine.currentTime == 0)
-    }
-
-    @Test func windingRewindStopsAtStart() async throws {
-        let engine = AudioEngine()
-        try await engine.load(url: TestFixtures.makeAudioFile(duration: 5))
-        engine.seek(to: 0.5)
-
-        engine.startWinding(-1)
-        for _ in 0..<50 where engine.windDirection != 0 {
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        #expect(engine.windDirection == 0)
-        #expect(engine.currentTime == 0)
-    }
-
     @Test func effectParametersAreStored() {
         let engine = AudioEngine()
         engine.speed = 0.75

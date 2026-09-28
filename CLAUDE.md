@@ -49,7 +49,7 @@ iPhone-приложение: пользователь загружает тре�
   - `AudioEngine` (`@Observable`): граф player → mixer → varispeed → reverb → main mixer. Здесь play, pause, seek, перемотка (`startWinding`) и импорт через `NSFileCoordinator`.
   - `LevelMeter`: уровни L/R для индикатора, отдельная модель, чтобы частые обновления перерисовывали только индикатор. Tap режет буферы на куски по 20 мс.
   - `AudioExporter`: офлайн-рендер той же цепочки в AAC `.m4a` плюс хвост реверба 2.5 с. `TrackExporter` — состояние кнопки REC и меню «Поделиться».
-- `Gif/`: `GiphyService` (поиск аниме-гифок по GIPHY; ключ читается из `MyApp/Secrets.plist`, который в `.gitignore`, шаблон — `Secrets.example.plist`; без ключа экран показывает «No signal»), `AnimatedGIF` (декодирование с лимитом памяти 48 МБ), `GifChannel` (состояния экрана), `GifEffect` + `GifShaders.metal` (эффекты Pixel / CRT / VHS / Neon, по умолчанию выключены).
+- `Gif/`: `GiphyService` (поиск аниме-гифок по GIPHY, ключ внутри), `AnimatedGIF` (декодирование с лимитом памяти 48 МБ), `GifChannel` (состояния экрана), `GifEffect` + `GifShaders.metal` (эффекты Pixel / CRT / VHS / Neon, по умолчанию выключены).
 - `Player/`: компоненты экрана плеера. `PhysicalKeyStyle` — «физические» клавиши с продавливанием и хаптиками.
 - `Theme/`: `RetroTheme` (палитра, `pixelUnit`, `lcdGlow`, `Scanlines`, `.playerPreview()`), `PixelFont` (свой шрифт 5×7 с латиницей и кириллицей), `PixelShapes`.
 - `Welcome/`: аркадный приветственный экран и пиксель-арт (`PixelCassetteSprite`, `ExtrudedPixelLogo`, `PixelStarfield`).
