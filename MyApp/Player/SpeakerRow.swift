@@ -1,43 +1,65 @@
 import SwiftUI
 
-/// Speaker grille slice + status LED + round EJECT / REC keys
-/// (in the spot where the reference has VOL+ / VOL−).
+/// Row under the GIF: compact L/R level meter, status LED and the EJECT / REC keys side by side.
 struct SpeakerRow: View {
+    let meter: LevelMeter
     let isPlaying: Bool
     let canRecord: Bool
+    /// REC stays latched down while a tape is being recorded.
+    var isRecording = false
     let onEject: () -> Void
     let onRecord: () -> Void
+    /// Row height; the parent scales it with the screen height.
+    var height: CGFloat = 86
+
+    @Environment(\.pixelUnit) private var unit
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
+        let keySpacing: CGFloat = 8
+        let keyHeight = height
+
         HStack(spacing: 12) {
-            Image(.speakerGrille)
-                .resizable()
-                .scaledToFill()
-                .frame(height: 30)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .clipped()
+            StereoMeterView(meter: meter, isPlaying: isPlaying)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             StatusLED(isOn: isPlaying)
 
-            roundKey(symbol: "eject.fill", title: "Eject", action: onEject)
-            roundKey(symbol: "record.circle", title: "Rec", action: onRecord)
-                .disabled(!canRecord)
+            HStack(spacing: keySpacing) {
+                roundKey(glyph: "⏏", title: "Eject", height: keyHeight, action: onEject)
+                    .disabled(isRecording)
+                roundKey(glyph: "●", title: "Rec", height: keyHeight, isLatched: isRecording, glyphColor: isRecording ? RetroTheme.accentRed : nil, action: onRecord)
+                    .disabled(!canRecord)
+                    .accessibilityHint(isRecording ? "Cancels recording" : "Records the track with the current speed and reverb")
+            }
         }
-        .frame(height: 50)
+        .frame(height: height)
     }
 
-    private func roundKey(symbol: String, title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 1) {
-                Image(systemName: symbol)
-                    .font(.system(size: 11, weight: .bold))
-                Text(title)
-                    .font(RetroTheme.pixel(7, weight: .bold))
-                    .textCase(.uppercase)
+    private func roundKey(
+        glyph: String,
+        title: String,
+        height: CGFloat,
+        isLatched: Bool = false,
+        glyphColor: Color? = nil,
+        action: @escaping () -> Void
+    ) -> some View {
+        let labelPixel = PixelText.snapped(unit * 0.5, scale: displayScale)
+        return Button(action: action) {
+            VStack(spacing: labelPixel * 2) {
+                if let glyphColor {
+                    PixelText(glyph, pixel: labelPixel * 1.5)
+                        .foregroundStyle(glyphColor)
+                        .lcdGlow(glyphColor, radius: 4)
+                } else {
+                    PixelText(glyph, pixel: labelPixel * 1.5)
+                }
+                PixelText(title, pixel: labelPixel)
             }
-            .frame(width: 44, height: 40)
+            // The key's travel (thickness) is added below the face by the style.
+            .frame(width: 46, height: max(height - 3.5, 24))
         }
-        .buttonStyle(PhysicalKeyStyle(cornerRadius: 22, thickness: 3.5))
+        .buttonStyle(PhysicalKeyStyle(cornerRadius: 12, thickness: 3.5, isLatched: isLatched))
         .accessibilityLabel(title)
     }
 }
@@ -63,4 +85,12 @@ struct StatusLED: View {
             .animation(.easeInOut(duration: 0.25), value: isOn)
             .accessibilityHidden(true)
     }
+}
+
+#Preview {
+    VStack(spacing: 24) {
+        SpeakerRow(meter: LevelMeter(), isPlaying: false, canRecord: true, onEject: {}, onRecord: {}, height: 48)
+        SpeakerRow(meter: LevelMeter(), isPlaying: true, canRecord: true, isRecording: true, onEject: {}, onRecord: {}, height: 48)
+    }
+    .playerPreview()
 }

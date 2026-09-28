@@ -5,7 +5,7 @@ import SwiftUI
 ///
 /// Each glyph is 7 rows of `#` (lit) / `.` (off); glyph width = row length,
 /// so narrow glyphs like `.` or `!` take less space.
-enum PixelFont {
+nonisolated enum PixelFont {
     static let glyphHeight = 7
     /// Empty columns between glyphs.
     static let letterSpacing = 1
@@ -211,6 +211,11 @@ struct PixelText: View {
     /// Rounds a pixel size to whole device pixels so edges stay razor-sharp.
     static func snapped(_ pixel: CGFloat, scale: CGFloat) -> CGFloat {
         max((pixel * scale).rounded(), 1) / scale
+    }
+
+    /// Like `snapped`, but never larger than `pixel` — use for layout units that must fit.
+    static func snappedDown(_ pixel: CGFloat, scale: CGFloat) -> CGFloat {
+        max((pixel * scale).rounded(.down), 1) / scale
     }
 }
 

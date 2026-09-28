@@ -9,43 +9,99 @@ struct TransportButtons: View {
     let onForward: () -> Void
     let onRewind: () -> Void
     let onStop: () -> Void
+    /// Held ◀◀ / ▶▶: -1 / +1 to start winding, 0 to stop.
+    let onWind: (Int) -> Void
+    /// Total block height; the parent scales it with the screen height.
+    var height: CGFloat = 118
+    /// Draw the block's own recessed housing; off when it sits inside another panel.
+    var showsHousing = true
+
+    @Environment(\.pixelUnit) private var unit
+    @Environment(\.displayScale) private var displayScale
+
+    /// Pending "is this a hold?" check for ◀◀ / ▶▶.
+    @State private var holdTask: Task<Void, Never>?
+    /// Set once a press turned into winding, so the release doesn't also skip 10 s.
+    @State private var didWind = false
+
+    /// How long ◀◀ / ▶▶ must be held before fast winding starts.
+    private static let holdDelay: Duration = .milliseconds(350)
 
     var body: some View {
-        HStack(spacing: 9) {
+        let spacing = height * 0.076
+        HStack(spacing: spacing) {
             Button(action: onPlayPause) {
-                glyph(isPlaying ? "pause.fill" : "play.fill", size: 30)
-                    .contentTransition(.symbolEffect(.replace))
+                key(isPlaying ? "⏸" : "▶", label: isPlaying ? "Pause" : "Play", scale: 2.2)
             }
             // Play latches down while the tape is running, like a real deck.
             .buttonStyle(PhysicalKeyStyle(cornerRadius: 14, isLatched: isPlaying))
             .accessibilityLabel(isPlaying ? "Pause" : "Play")
 
-            VStack(spacing: 9) {
-                Button(action: onForward) { glyph("forward.fill", size: 17) }
-                    .buttonStyle(PhysicalKeyStyle(cornerRadius: 12, thickness: 4))
+            // Tap: ±10 s. Hold: fast wind until released.
+            VStack(spacing: spacing) {
+                Button { tapped(onForward) } label: { key("▶▶", label: "FF", scale: 0.8) }
+                    .buttonStyle(PhysicalKeyStyle(cornerRadius: 12, thickness: 4) { pressed in
+                        windKeyPressChanged(pressed, direction: 1)
+                    })
                     .accessibilityLabel("Forward 10 seconds")
+                    .accessibilityHint("Hold to fast-forward")
 
-                Button(action: onRewind) { glyph("backward.fill", size: 17) }
-                    .buttonStyle(PhysicalKeyStyle(cornerRadius: 12, thickness: 4))
+                Button { tapped(onRewind) } label: { key("◀◀", label: "Rew", scale: 0.8) }
+                    .buttonStyle(PhysicalKeyStyle(cornerRadius: 12, thickness: 4) { pressed in
+                        windKeyPressChanged(pressed, direction: -1)
+                    })
                     .accessibilityLabel("Back 10 seconds")
+                    .accessibilityHint("Hold to rewind")
             }
-            .frame(width: 92)
+            .frame(width: height * 0.78)
 
-            Button(action: onStop) { glyph("stop.fill", size: 22) }
+            Button(action: onStop) { key("■", label: "Stop", scale: 1.6) }
                 .buttonStyle(PhysicalKeyStyle(cornerRadius: 14))
-                .frame(width: 70)
+                .frame(width: height * 0.6)
                 .accessibilityLabel("Stop")
         }
-        .padding(11)
-        .frame(height: 118)
-        .background { housing }
+        .padding(showsHousing ? spacing * 1.2 : 0)
+        .frame(height: height)
+        .background { if showsHousing { housing } }
         .disabled(!isEnabled)
     }
 
-    private func glyph(_ name: String, size: CGFloat) -> some View {
-        Image(systemName: name)
-            .font(.system(size: size, weight: .semibold))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    // MARK: Press-and-hold winding
+
+    private func windKeyPressChanged(_ isPressed: Bool, direction: Int) {
+        holdTask?.cancel()
+        if isPressed {
+            didWind = false
+            holdTask = Task {
+                try? await Task.sleep(for: Self.holdDelay)
+                guard !Task.isCancelled else { return }
+                didWind = true
+                onWind(direction)
+            }
+        } else {
+            // Always stop on release; stopping when not winding is a no-op.
+            onWind(0)
+        }
+    }
+
+    /// Button action for ◀◀ / ▶▶ — skips only if the press didn't become a wind.
+    private func tapped(_ skip: () -> Void) {
+        if didWind {
+            didWind = false
+        } else {
+            skip()
+        }
+    }
+
+    /// Pixel icon with a tiny printed label underneath, like the legends on a tape deck.
+    private func key(_ glyph: String, label: String, scale: CGFloat) -> some View {
+        let labelPixel = PixelText.snapped(unit * 0.5, scale: displayScale)
+        return VStack(spacing: labelPixel * 5) {
+            PixelText(glyph, pixel: unit * scale)
+            PixelText(label, pixel: labelPixel)
+                .opacity(0.7)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var housing: some View {
@@ -72,4 +128,12 @@ struct TransportButtons: View {
                 )
             }
     }
+}
+
+#Preview {
+    VStack(spacing: 24) {
+        TransportButtons(isPlaying: false, isEnabled: true, onPlayPause: {}, onForward: {}, onRewind: {}, onStop: {}, onWind: { _ in }, height: 104)
+        TransportButtons(isPlaying: true, isEnabled: true, onPlayPause: {}, onForward: {}, onRewind: {}, onStop: {}, onWind: { _ in }, height: 92, showsHousing: false)
+    }
+    .playerPreview()
 }

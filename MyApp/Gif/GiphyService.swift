@@ -25,7 +25,7 @@ nonisolated enum GiphyService {
 
     /// Downloads and decodes a random anime GIF, off the main actor.
     @concurrent
-    static func randomGIF(maxPixelSize: Int = 400) async throws -> AnimatedGIF {
+    static func randomGIF(maxPixelSize: Int = 720) async throws -> AnimatedGIF {
         var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)
         components?.queryItems = [
             URLQueryItem(name: "api_key", value: apiKey),
@@ -61,13 +61,16 @@ nonisolated enum GiphyService {
     }
 
     private struct Images: Decodable {
+        let downsizedMedium: Rendition?
         let downsized: Rendition?
         let fixedHeight: Rendition?
 
-        /// "downsized" (≤ 2 MB, full width) looks clean full-screen; "fixed_height" is the fallback.
-        var bestURL: URL? { downsized?.url ?? fixedHeight?.url }
+        /// Sharpest rendition that's still reasonably light: "downsized_medium" (≤ 5 MB),
+        /// then "downsized" (≤ 2 MB), then "fixed_height" (200 px tall).
+        var bestURL: URL? { downsizedMedium?.url ?? downsized?.url ?? fixedHeight?.url }
 
         enum CodingKeys: String, CodingKey {
+            case downsizedMedium = "downsized_medium"
             case downsized
             case fixedHeight = "fixed_height"
         }

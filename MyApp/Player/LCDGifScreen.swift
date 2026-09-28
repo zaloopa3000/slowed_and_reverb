@@ -1,7 +1,9 @@
 import SwiftUI
 
-/// Full-bleed anime GIF at the top of the player, shown clean (no retro filters on top).
-/// Tap to switch to another random GIF; static noise fills the screen while the next one loads.
+/// Full-bleed anime GIF at the top of the player, clean by default.
+/// Two clear glass buttons in the bottom corners: cycle an optional overlay effect
+/// (Pixel / CRT / VHS / Neon) and load the next random anime GIF.
+/// Static noise fills the screen while the next GIF loads.
 /// The GIF plays at the track's speed while music is playing, so slowed tracks look slowed too.
 struct LCDGifScreen: View {
     let channel: GifChannel
@@ -11,6 +13,9 @@ struct LCDGifScreen: View {
     var topInset: CGFloat = 0
 
     @State private var clock = GifClock()
+    /// Remembered between launches; clean by default.
+    @AppStorage("gifEffect") private var effect: GifEffect = .none
+    @State private var isEffectNameVisible = false
     @Environment(\.pixelUnit) private var unit
 
     var body: some View {
@@ -28,7 +33,9 @@ struct LCDGifScreen: View {
                             .scaledToFill()
                     }
                     .clipped()
+                    .gifEffect(effect, time: context.date.timeIntervalSinceReferenceDate, pixelSize: unit * 4)
                 }
+                .accessibilityLabel("Anime GIF")
             case .idle, .tuning:
                 StaticNoise(pixel: unit * 1.5)
             case .noSignal:
@@ -36,7 +43,7 @@ struct LCDGifScreen: View {
                     StaticNoise(pixel: unit * 1.5).opacity(0.35)
                     VStack(spacing: unit * 3) {
                         BlinkingPixelText(text: "No signal", pixel: unit * 1.25, interval: 0.6)
-                        PixelText("Tap to retune", pixel: unit * 0.6)
+                        PixelText("Tap next to retune", pixel: unit * 0.6)
                             .opacity(0.7)
                     }
                     .foregroundStyle(RetroTheme.lcdText)
@@ -50,21 +57,68 @@ struct LCDGifScreen: View {
                 .frame(height: topInset + unit * 6)
                 .allowsHitTesting(false)
         }
-        // Attribution required by the GIPHY API terms.
-        .overlay(alignment: .bottomTrailing) {
+        .overlay(alignment: .bottom) { controls }
+        .sensoryFeedback(.impact(weight: .light, intensity: 0.7), trigger: channel.number)
+        .sensoryFeedback(.selection, trigger: effect)
+        .task { channel.tuneInIfNeeded() }
+    }
+
+    /// Effect button (left), GIPHY attribution (center), next-GIF button (right).
+    private var controls: some View {
+        HStack(alignment: .bottom) {
+            VStack(alignment: .leading, spacing: unit * 2) {
+                if isEffectNameVisible {
+                    PixelText(effect.title, pixel: unit * 0.75)
+                        .foregroundStyle(Color.white)
+                        .padding(.horizontal, unit * 3)
+                        .padding(.vertical, unit * 2)
+                        .background(Capsule().fill(Color.black.opacity(0.45)))
+                        .transition(.opacity)
+                }
+                glassButton(systemImage: "camera.filters", label: "Change effect, now \(effect.title)") {
+                    effect = effect.next
+                    showEffectName()
+                }
+            }
+
+            Spacer()
+
+            // Attribution required by the GIPHY API terms.
             PixelText("Giphy", pixel: unit * 0.5)
                 .foregroundStyle(Color.white.opacity(0.6))
                 .shadow(color: .black.opacity(0.8), radius: 1)
-                .padding(unit * 2)
+                .padding(.bottom, unit * 2)
+
+            Spacer()
+
+            glassButton(systemImage: "shuffle", label: "Next GIF") {
+                channel.nextChannel()
+            }
         }
-        .contentShape(Rectangle())
-        .onTapGesture { channel.nextChannel() }
-        .sensoryFeedback(.impact(weight: .light, intensity: 0.7), trigger: channel.number)
-        .task { channel.tuneInIfNeeded() }
-        .accessibilityElement()
-        .accessibilityLabel("Anime GIF")
-        .accessibilityHint("Double-tap for another GIF")
-        .accessibilityAddTraits(.isButton)
+        .padding(unit * 4)
+        .animation(.easeInOut(duration: 0.2), value: isEffectNameVisible)
+    }
+
+    private func glassButton(systemImage: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Color.white)
+                .frame(width: 30, height: 30)
+        }
+        .buttonStyle(.glass(.clear))
+        .buttonBorderShape(.circle)
+        .accessibilityLabel(label)
+    }
+
+    private func showEffectName() {
+        isEffectNameVisible = true
+        let shown = effect
+        Task {
+            try? await Task.sleep(for: .seconds(1.4))
+            // Only hide if no newer tap re-showed it with another effect.
+            if effect == shown { isEffectNameVisible = false }
+        }
     }
 }
 
@@ -123,4 +177,11 @@ private struct SplitMix64 {
         z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
         return z ^ (z >> 31)
     }
+}
+
+#Preview {
+    // Loads a real GIF from GIPHY, so it needs network access.
+    LCDGifScreen(channel: GifChannel(), rate: 1)
+        .frame(height: 320)
+        .playerPreview(padding: 0)
 }

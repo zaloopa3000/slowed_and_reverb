@@ -15,10 +15,14 @@ struct SteppedSlider: View {
     let tickLabel: (Float) -> String
 
     @State private var isDragging = false
+    @Environment(\.pixelUnit) private var unit
+    @Environment(\.displayScale) private var displayScale
 
     private let knobSize = CGSize(width: 20, height: 28)
     private let trackHeight: CGFloat = 48
     private var grooveY: CGFloat { knobSize.height / 2 + 1 }
+    /// Pixel size for the tiny scale labels (1 pt on a typical iPhone).
+    private var labelPixel: CGFloat { PixelText.snapped(unit * 0.5, scale: displayScale) }
 
     private var stepCount: Int {
         Int(((range.upperBound - range.lowerBound) / step).rounded())
@@ -40,9 +44,10 @@ struct SteppedSlider: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(title)
-                    .lcdText(10, color: RetroTheme.text.opacity(0.75))
+            VStack(alignment: .leading, spacing: unit * 3) {
+                PixelText(title, pixel: unit * 0.8)
+                    .foregroundStyle(RetroTheme.text.opacity(0.8))
+                    .pixelShadow(.black.opacity(0.5), offset: 1)
                 readout
             }
             .frame(width: 66, alignment: .leading)
@@ -63,21 +68,22 @@ struct SteppedSlider: View {
 
     // MARK: Readout
 
+    /// Small dot-matrix readout ("0.85X", "40%").
     private var readout: some View {
-        Text(valueText(value))
-            .font(RetroTheme.pixel(13, weight: .bold))
-            .monospacedDigit()
-            .contentTransition(.numericText())
+        let pixel = min(unit, 66 / CGFloat(PixelFont.width(of: valueText(range.upperBound)) + 8))
+        return PixelText(valueText(value), pixel: pixel)
             .foregroundStyle(RetroTheme.lcdText)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
+            .lcdGlow(radius: 2)
+            .padding(.vertical, pixel * 2.5)
             .frame(maxWidth: .infinity)
-            .background(RoundedRectangle(cornerRadius: 4).fill(RetroTheme.lcdGlass))
-            .overlay(
-                RoundedRectangle(cornerRadius: 4)
-                    .strokeBorder(Color.black.opacity(0.6), lineWidth: 1)
-            )
-            .animation(.snappy(duration: 0.15), value: index)
+            .background {
+                PixelNotchedRect(step: pixel, steps: 1)
+                    .fill(RetroTheme.lcdGlass.mix(with: .black, by: 0.35))
+                    .overlay {
+                        PixelNotchedRect(step: pixel, steps: 1)
+                            .stroke(Color.black.opacity(0.7), lineWidth: pixel)
+                    }
+            }
     }
 
     // MARK: Track
@@ -90,29 +96,21 @@ struct SteppedSlider: View {
             ZStack(alignment: .topLeading) {
                 tickScale(usable: usable)
 
-                // Groove the fader runs in.
-                Capsule()
-                    .fill(Color.black.opacity(0.75))
-                    .overlay(
-                        Capsule()
-                            .strokeBorder(
-                                LinearGradient(
-                                    colors: [.black.opacity(0.8), .white.opacity(0.18)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                ),
-                                lineWidth: 1
-                            )
-                    )
-                    .frame(width: geo.size.width, height: 7)
-                    .offset(y: grooveY - 3.5)
+                // Square-cut groove the fader runs in, with a light lower lip.
+                Rectangle()
+                    .fill(Color.black.opacity(0.8))
+                    .overlay(alignment: .bottom) {
+                        Rectangle().fill(Color.white.opacity(0.2)).frame(height: 1).offset(y: 1)
+                    }
+                    .frame(width: geo.size.width, height: 6)
+                    .offset(y: grooveY - 3)
 
-                // Lit portion of the groove.
-                Capsule()
-                    .fill(RetroTheme.accentRed.opacity(0.85))
-                    .shadow(color: RetroTheme.accentRed.opacity(0.6), radius: 3)
-                    .frame(width: max(knobX - 4, 0), height: 2)
-                    .offset(x: 2, y: grooveY - 1)
+                // Lit portion of the groove: a glowing pixel line.
+                Rectangle()
+                    .fill(RetroTheme.accentRed)
+                    .shadow(color: RetroTheme.accentRed.opacity(0.8), radius: 3)
+                    .frame(width: max(knobX - 2, 0), height: 2)
+                    .offset(x: 1, y: grooveY - 1)
 
                 FaderKnob(isDragging: isDragging)
                     .frame(width: knobSize.width, height: knobSize.height)
@@ -147,31 +145,35 @@ struct SteppedSlider: View {
 
     private func tickScale(usable: CGFloat) -> some View {
         let currentIndex = index
-        return Canvas { context, _ in
-            let tickTop = grooveY + 9
-            for i in 0...stepCount {
-                let x = knobSize.width / 2 + usable * CGFloat(i) / CGFloat(stepCount)
-                let isMajor = i % majorEvery == 0
-                let isDetent = detents.contains(i)
-                let length: CGFloat = isMajor ? 8 : (isDetent ? 6 : 4)
-                // Ticks at or below the knob are brighter, like a lit scale.
-                let opacity = i <= currentIndex ? 0.95 : 0.4
+        let tickTop = grooveY + 8
+        let majorLength: CGFloat = 8
+        let tickWidth = PixelText.snapped(1, scale: displayScale)
 
-                var tick = Path()
-                tick.move(to: CGPoint(x: x, y: tickTop))
-                tick.addLine(to: CGPoint(x: x, y: tickTop + length))
-                context.stroke(
-                    tick,
-                    with: .color(RetroTheme.text.opacity(opacity)),
-                    lineWidth: isMajor ? 1.3 : 1
-                )
-
-                if isMajor {
-                    let label = Text(tickLabel(value(at: i)))
-                        .font(RetroTheme.pixel(8, weight: .semibold))
-                        .foregroundStyle(RetroTheme.text.opacity(i == currentIndex ? 1 : 0.6))
-                    context.draw(label, at: CGPoint(x: x, y: tickTop + length + 7))
+        return ZStack(alignment: .topLeading) {
+            Canvas { context, _ in
+                for i in 0...stepCount {
+                    // Snap to device pixels so every tick is equally crisp.
+                    let rawX = knobSize.width / 2 + usable * CGFloat(i) / CGFloat(stepCount)
+                    let x = (rawX * displayScale).rounded() / displayScale - tickWidth / 2
+                    let isMajor = i % majorEvery == 0
+                    let isDetent = detents.contains(i)
+                    let length: CGFloat = isMajor ? majorLength : (isDetent ? 6 : 4)
+                    // Ticks at or below the knob are brighter, like a lit scale.
+                    let opacity = i <= currentIndex ? 0.95 : 0.4
+                    context.fill(
+                        Path(CGRect(x: x, y: tickTop, width: isMajor ? tickWidth * 2 : tickWidth, height: length)),
+                        with: .color(RetroTheme.text.opacity(opacity))
+                    )
                 }
+            }
+
+            ForEach(Array(stride(from: 0, through: stepCount, by: majorEvery)), id: \.self) { i in
+                PixelText(tickLabel(value(at: i)), pixel: labelPixel)
+                    .foregroundStyle(RetroTheme.text.opacity(i == currentIndex ? 1 : 0.6))
+                    .position(
+                        x: knobSize.width / 2 + usable * CGFloat(i) / CGFloat(stepCount),
+                        y: tickTop + majorLength + 4 + labelPixel * CGFloat(PixelFont.glyphHeight) / 2
+                    )
             }
         }
     }

@@ -9,32 +9,34 @@ struct PixelNotchedRect: Shape {
 
     func path(in rect: CGRect) -> Path {
         let s = step
+        let n = CGFloat(steps)
         var path = Path()
-        // Walk the outline clockwise, cutting each corner into a staircase.
-        path.move(to: CGPoint(x: rect.minX + s * CGFloat(steps), y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX - s * CGFloat(steps), y: rect.minY))
-        for i in 0..<steps {
-            let base = CGFloat(steps - i)
-            path.addLine(to: CGPoint(x: rect.maxX - s * (base - 1), y: rect.minY + s * CGFloat(i)))
-            path.addLine(to: CGPoint(x: rect.maxX - s * (base - 1), y: rect.minY + s * CGFloat(i + 1)))
+
+        // Walk the outline clockwise; each corner is a staircase of `steps` steps.
+        path.move(to: CGPoint(x: rect.minX + n * s, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX - n * s, y: rect.minY))
+        for k in 1...steps { // top-right: down, then right
+            let k = CGFloat(k)
+            path.addLine(to: CGPoint(x: rect.maxX - (n - k + 1) * s, y: rect.minY + k * s))
+            path.addLine(to: CGPoint(x: rect.maxX - (n - k) * s, y: rect.minY + k * s))
         }
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - s * CGFloat(steps)))
-        for i in 0..<steps {
-            let base = CGFloat(i + 1)
-            path.addLine(to: CGPoint(x: rect.maxX - s * CGFloat(i), y: rect.maxY - s * (CGFloat(steps) - base)))
-            path.addLine(to: CGPoint(x: rect.maxX - s * base, y: rect.maxY - s * (CGFloat(steps) - base)))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - n * s))
+        for k in 1...steps { // bottom-right: left, then down
+            let k = CGFloat(k)
+            path.addLine(to: CGPoint(x: rect.maxX - k * s, y: rect.maxY - (n - k + 1) * s))
+            path.addLine(to: CGPoint(x: rect.maxX - k * s, y: rect.maxY - (n - k) * s))
         }
-        path.addLine(to: CGPoint(x: rect.minX + s * CGFloat(steps), y: rect.maxY))
-        for i in 0..<steps {
-            let base = CGFloat(steps - i)
-            path.addLine(to: CGPoint(x: rect.minX + s * (base - 1), y: rect.maxY - s * CGFloat(i)))
-            path.addLine(to: CGPoint(x: rect.minX + s * (base - 1), y: rect.maxY - s * CGFloat(i + 1)))
+        path.addLine(to: CGPoint(x: rect.minX + n * s, y: rect.maxY))
+        for k in 1...steps { // bottom-left: up, then left
+            let k = CGFloat(k)
+            path.addLine(to: CGPoint(x: rect.minX + (n - k + 1) * s, y: rect.maxY - k * s))
+            path.addLine(to: CGPoint(x: rect.minX + (n - k) * s, y: rect.maxY - k * s))
         }
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + s * CGFloat(steps)))
-        for i in 0..<steps {
-            let base = CGFloat(i + 1)
-            path.addLine(to: CGPoint(x: rect.minX + s * CGFloat(i), y: rect.minY + s * (CGFloat(steps) - base)))
-            path.addLine(to: CGPoint(x: rect.minX + s * base, y: rect.minY + s * (CGFloat(steps) - base)))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + n * s))
+        for k in 1...steps { // top-left: right, then up
+            let k = CGFloat(k)
+            path.addLine(to: CGPoint(x: rect.minX + k * s, y: rect.minY + (n - k + 1) * s))
+            path.addLine(to: CGPoint(x: rect.minX + k * s, y: rect.minY + (n - k) * s))
         }
         path.closeSubpath()
         return path

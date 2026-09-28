@@ -17,13 +17,15 @@ nonisolated enum AudioExporter {
     private static let reverbTail: TimeInterval = 2.5
     private static let maxFramesPerRender: AVAudioFrameCount = 4096
 
-    /// Renders `source` with `settings`, reporting progress 0…1, and returns the new file's URL.
+    /// Renders `source` with `settings`, reporting progress 0…1, and returns the new file's URL
+    /// (`destination`, or a titled file in the "Exports" folder).
     /// Runs off the main actor; supports task cancellation (the partial file is removed).
     @concurrent
     static func export(
         source: URL,
         title: String,
         settings: Settings,
+        destination: URL? = nil,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> URL {
         let input = try AVAudioFile(forReading: source)
@@ -52,14 +54,9 @@ nonisolated enum AudioExporter {
         try engine.start()
         defer { engine.stop() }
 
-        player.scheduleFile(input, at: nil)
-        if #available(iOS 27, *) {
-            try player.playAudio()
-        } else {
-            player.play()
-        }
+        try startPlayback(of: input, on: player)
 
-        let outputURL = try makeOutputURL(title: title, settings: settings)
+        let outputURL = try destination ?? makeOutputURL(title: title, settings: settings)
         let output = try AVAudioFile(
             forWriting: outputURL,
             settings: [
@@ -116,6 +113,17 @@ nonisolated enum AudioExporter {
 
     // MARK: Helpers
 
+    /// Synchronous on purpose: in an async context `scheduleFile` would resolve to the
+    /// overload that waits for playback to finish, which never happens before rendering.
+    private static func startPlayback(of file: AVAudioFile, on player: AVAudioPlayerNode) throws {
+        player.scheduleFile(file, at: nil, completionHandler: nil)
+        if #available(iOS 27, *) {
+            try player.playAudio()
+        } else {
+            player.play()
+        }
+    }
+
     private static func connect(_ engine: AVAudioEngine, _ source: AVAudioNode, to destination: AVAudioNode, format: AVAudioFormat) throws {
         if #available(iOS 27, *) {
             try engine.connectNode(source, to: destination, format: format)
@@ -124,19 +132,19 @@ nonisolated enum AudioExporter {
         }
     }
 
-    /// "<title> (slowed + reverb).m4a" in a temp "Exports" folder; replaces an older copy.
-    private static func makeOutputURL(title: String, settings: Settings) throws -> URL {
+    /// "<title> (slowed + reverb).<ext>" in a temp "Exports" folder; replaces an older copy.
+    static func makeOutputURL(title: String, settings: Settings, fileExtension: String = "m4a") throws -> URL {
         let folder = FileManager.default.temporaryDirectory.appending(path: "Exports", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
 
-        let url = folder.appending(path: fileName(title: title, settings: settings))
-        if FileManager.default.fileExists(atPath: url.path()) {
+        let url = folder.appending(path: fileName(title: title, settings: settings, fileExtension: fileExtension))
+        if FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) {
             try FileManager.default.removeItem(at: url)
         }
         return url
     }
 
-    static func fileName(title: String, settings: Settings) -> String {
+    static func fileName(title: String, settings: Settings, fileExtension: String = "m4a") -> String {
         var tags: [String] = []
         if settings.speed < 0.999 { tags.append("slowed") }
         if settings.speed > 1.001 { tags.append("sped up") }
@@ -145,9 +153,10 @@ nonisolated enum AudioExporter {
         // Keep the name safe for every share target.
         let invalid = CharacterSet(charactersIn: "/\\:?%*|\"<>")
         let cleanTitle = title.components(separatedBy: invalid).joined(separator: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
         let base = cleanTitle.isEmpty ? "Tape" : cleanTitle
         let suffix = tags.isEmpty ? "" : " (\(tags.joined(separator: " + ")))"
-        return base + suffix + ".m4a"
+        return base + suffix + "." + fileExtension
     }
 }

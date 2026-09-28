@@ -262,3 +262,20 @@ struct BlinkingPixelText: View {
         .accessibilityLabel(text)
     }
 }
+
+#Preview("Logo & cassette") {
+    VStack(spacing: 32) {
+        ExtrudedPixelLogo(lines: ["SLOWED", "+REVERB"], pixel: 6)
+        PixelCassetteSprite(cell: 6)
+        BlinkingPixelText(text: "Insert a song to start", pixel: 2)
+            .foregroundStyle(RetroTheme.Arcade.yellow)
+    }
+    .padding(24)
+    .background(RetroTheme.Arcade.background)
+}
+
+#Preview("Starfield") {
+    PixelStarfield()
+        .background(RetroTheme.Arcade.background)
+        .ignoresSafeArea()
+}

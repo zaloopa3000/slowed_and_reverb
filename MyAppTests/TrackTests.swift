@@ -47,6 +47,20 @@ struct TrackExporterTests {
         try? FileManager.default.removeItem(at: file.url)
     }
 
+    @Test func exportWithGIFPublishesVideo() async throws {
+        let source = try TestFixtures.makeAudioFile(duration: 0.3)
+        let gif = try #require(AnimatedGIF(data: try TestFixtures.makeGIFData(delays: [0.1, 0.1]), maxPixelSize: 100))
+        let exporter = TrackExporter()
+
+        exporter.start(source: source, title: "Video \(UUID().uuidString)", speed: 0.85, reverb: 20, gif: gif)
+        try await waitUntilDone(exporter)
+
+        #expect(exporter.errorMessage == nil)
+        let file = try #require(exporter.exported)
+        #expect(file.url.pathExtension == "mp4")
+        try? FileManager.default.removeItem(at: file.url)
+    }
+
     @Test func failedExportReportsError() async throws {
         let missing = FileManager.default.temporaryDirectory.appending(path: "missing-\(UUID().uuidString).caf")
         let exporter = TrackExporter()

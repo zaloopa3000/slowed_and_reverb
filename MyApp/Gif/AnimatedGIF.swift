@@ -1,7 +1,7 @@
 import Foundation
 import ImageIO
 
-/// Decoded GIF frames with their delays, downsampled for the chunky LCD look.
+/// Decoded GIF frames with their delays, downsampled to keep memory in check.
 ///
 /// `CGImage` is immutable, so sharing decoded frames across threads is safe.
 nonisolated struct AnimatedGIF: @unchecked Sendable {
@@ -9,16 +9,21 @@ nonisolated struct AnimatedGIF: @unchecked Sendable {
     let delays: [TimeInterval]
     let duration: TimeInterval
 
-    /// Decodes `data`, scaling frames so their longer side is at most `maxPixelSize`.
-    /// Very long GIFs are capped at `maxFrames` to keep memory in check.
-    init?(data: Data, maxPixelSize: Int, maxFrames: Int = 150) {
+    /// Decodes `data`, scaling frames so their longer side is at most `maxPixelSize` —
+    /// and smaller if needed so all decoded frames fit in `memoryBudget` bytes.
+    /// Short GIFs keep near-source sharpness; long ones trade resolution for memory.
+    init?(data: Data, maxPixelSize: Int, maxFrames: Int = 100, memoryBudget: Int = 48 << 20) {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
         let count = min(CGImageSourceGetCount(source), maxFrames)
         guard count > 0 else { return nil }
 
+        // 4 bytes per pixel; assume square frames for a conservative per-frame side.
+        let budgetSide = Int((Double(memoryBudget) / 4 / Double(count)).squareRoot())
+        let pixelSize = max(min(maxPixelSize, budgetSide), 200)
+
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+            kCGImageSourceThumbnailMaxPixelSize: pixelSize,
             kCGImageSourceCreateThumbnailWithTransform: true
         ]
 
@@ -41,14 +46,19 @@ nonisolated struct AnimatedGIF: @unchecked Sendable {
 
     /// Frame to show `time` seconds into the (looping) animation.
     func frame(at time: TimeInterval) -> CGImage {
-        guard frames.count > 1, duration > 0 else { return frames[0] }
+        frames[frameIndex(at: time)]
+    }
+
+    /// Index of the frame to show `time` seconds into the (looping) animation.
+    func frameIndex(at time: TimeInterval) -> Int {
+        guard frames.count > 1, duration > 0 else { return 0 }
         var remaining = time.truncatingRemainder(dividingBy: duration)
         if remaining < 0 { remaining += duration }
         for (index, delay) in delays.enumerated() {
-            if remaining < delay { return frames[index] }
+            if remaining < delay { return index }
             remaining -= delay
         }
-        return frames[frames.count - 1]
+        return frames.count - 1
     }
 
     /// Per-frame delay; browsers treat tiny delays as 0.1 s, so do the same.

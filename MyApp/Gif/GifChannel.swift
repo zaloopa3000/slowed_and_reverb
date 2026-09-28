@@ -17,6 +17,11 @@ final class GifChannel {
     /// Channel number shown in the on-screen display; bumps on every switch.
     private(set) var number = 0
 
+    /// The GIF on screen right now, if any.
+    var currentGIF: AnimatedGIF? {
+        if case .showing(let gif) = state { gif } else { nil }
+    }
+
     @ObservationIgnored private var loadTask: Task<Void, Never>?
 
     /// Minimum time the static is shown, so switching always feels like a real channel change.

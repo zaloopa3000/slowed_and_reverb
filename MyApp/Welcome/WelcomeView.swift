@@ -19,14 +19,14 @@ struct WelcomeView: View {
         GeometryReader { geo in
             let size = geo.size
             // Base pixel: ~2 pt on a 393×852 screen, scaled for other sizes.
-            let unit = PixelText.snapped(min(size.width / 196, size.height / 400), scale: displayScale)
+            let unit = PixelText.snappedDown(min(size.width / 196, size.height / 380), scale: displayScale)
             let logoPixel = ExtrudedPixelLogo.fittingPixel(
                 for: Self.logoLines,
                 width: size.width - unit * 16,
                 height: size.height * 0.24,
                 scale: displayScale
             )
-            let spriteCell = PixelText.snapped(min(size.width * 0.42 / CGFloat(PixelCassetteSprite.columns), size.height * 0.13 / CGFloat(PixelCassetteSprite.rows)), scale: displayScale)
+            let spriteCell = PixelText.snappedDown(min(size.width * 0.42 / CGFloat(PixelCassetteSprite.columns), size.height * 0.13 / CGFloat(PixelCassetteSprite.rows)), scale: displayScale)
 
             VStack(spacing: 0) {
                 hud(unit: unit)
@@ -126,7 +126,7 @@ struct WelcomeView: View {
             }
             Spacer(minLength: unit * 3)
             VStack(spacing: unit * 4) {
-                PixelText("Slowed mix", pixel: unit * 1.25).foregroundStyle(Palette.white)
+                PixelText("New mix", pixel: unit * 1.25).foregroundStyle(Palette.white)
                 PixelText("0.80x", pixel: unit * 2.5).foregroundStyle(Palette.red)
             }
             Spacer(minLength: unit * 3)

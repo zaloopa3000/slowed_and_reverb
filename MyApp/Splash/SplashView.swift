@@ -25,10 +25,8 @@ struct SplashView: View {
             .opacity(appeared ? 1 : 0)
         }
         .background(RetroTheme.Arcade.background.ignoresSafeArea())
-        .task {
-            try? await Task.sleep(for: .milliseconds(150))
-            appeared = true
-        }
+        // Show immediately: the launch screen already has the same background color.
+        .onAppear { appeared = true }
     }
 }
 

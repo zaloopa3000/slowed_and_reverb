@@ -43,7 +43,7 @@ struct TimelineBar: View {
                             }
                     )
             }
-            .frame(height: unit * 6)
+            .frame(height: unit * 9)
 
             PixelText("-" + Self.format(max(duration - shownTime, 0)), pixel: pixel)
                 .frame(width: labelWidth, alignment: .trailing)
@@ -56,30 +56,38 @@ struct TimelineBar: View {
         .accessibilityValue(Self.format(shownTime))
     }
 
-    /// Row of square blocks; lit blocks glow, the head block is red.
+    /// Row of blocks; lit blocks glow cyan, and the playhead is a taller pink block
+    /// that sticks out above and below the row.
     private func segments(width: CGFloat, height: CGFloat) -> some View {
         let block = PixelText.snapped(unit * 1.5, scale: displayScale)
         let gap = PixelText.snapped(unit * 0.75, scale: displayScale)
         let count = max(Int((width + gap) / (block + gap)), 1)
-        let lit = Int((fraction * Double(count)).rounded(.down))
-        let blockHeight = height * 0.6
+        let head = min(Int((fraction * Double(count)).rounded(.down)), count - 1)
 
         return Canvas { context, size in
+            func snap(_ value: CGFloat) -> CGFloat { (value * displayScale).rounded() / displayScale }
+            let blockHeight = snap(size.height * 0.42)
             // Center the blocks in the available width.
             let used = CGFloat(count) * block + CGFloat(count - 1) * gap
-            let startX = ((size.width - used) / 2 * displayScale).rounded() / displayScale
-            let y = ((size.height - blockHeight) / 2 * displayScale).rounded() / displayScale
-            for i in 0..<count {
+            let startX = snap((size.width - used) / 2)
+            let y = snap((size.height - blockHeight) / 2)
+
+            for i in 0..<count where i != head || duration <= 0 {
                 let rect = CGRect(x: startX + CGFloat(i) * (block + gap), y: y, width: block, height: blockHeight)
-                let color: Color
-                if i == lit, duration > 0 {
-                    color = RetroTheme.accentRed
-                } else if i < lit {
-                    color = RetroTheme.lcdText
-                } else {
-                    color = Color.black.opacity(0.55)
-                }
+                let color = i < head ? RetroTheme.lcdText : RetroTheme.neonViolet.opacity(0.14)
                 context.fill(Path(rect), with: .color(color))
+            }
+
+            // Playhead: full height of the bar, with its own pink glow.
+            if duration > 0 {
+                let x = startX + CGFloat(head) * (block + gap)
+                context.drawLayer { glow in
+                    glow.addFilter(.shadow(color: RetroTheme.accentRed.opacity(0.9), radius: 4))
+                    glow.fill(
+                        Path(CGRect(x: x, y: 0, width: block, height: size.height)),
+                        with: .color(RetroTheme.accentRed)
+                    )
+                }
             }
         }
         .shadow(color: RetroTheme.lcdText.opacity(0.35), radius: 3)
@@ -88,4 +96,9 @@ struct TimelineBar: View {
     private static func format(_ time: TimeInterval) -> String {
         Duration.seconds(time.rounded(.down)).formatted(.time(pattern: .minuteSecond))
     }
+}
+
+#Preview {
+    TimelineBar(currentTime: 42, duration: 180, onSeek: { _ in })
+        .playerPreview()
 }

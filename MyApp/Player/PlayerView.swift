@@ -2,17 +2,18 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// Main player screen, top to bottom:
-/// - full-bleed lo-fi GIF: everything above the meter, running under the status bar;
-/// - level meter with EJECT / REC, track strip, sliders, timeline, transport;
-/// - the animated cassette, slightly wider than the screen and running off its bottom edge.
+/// - full-bleed anime GIF (~40% of the height), running under the status bar;
+/// - L/R level meter with EJECT / REC, sliders, now-playing strip + timeline, transport —
+///   spread evenly over the remaining height.
 ///
 /// Sizes derive from the available width/height: a pixel unit for all pixel-font
-/// UI, and a vertical scale that tightens spacing and fixed rows on short screens.
-/// The GIF takes whatever height is left, so every screen size stays filled.
+/// UI, and a vertical scale for the fixed rows. Leftover height goes into equal
+/// gaps between the controls, so every screen size looks evenly filled.
 struct PlayerView: View {
     @Bindable var engine: AudioEngine
     @State private var isImporterPresented = false
     @State private var gifChannel = GifChannel()
+    @State private var exporter = TrackExporter()
     @Environment(\.displayScale) private var displayScale
 
     var body: some View {
@@ -20,34 +21,14 @@ struct PlayerView: View {
             let unit = PixelText.snappedDown(min(geo.size.width / 196, geo.size.height / 380), scale: displayScale)
             // 1.0 on a ~760 pt tall safe area, smaller on shorter screens.
             let vScale = min(max(geo.size.height / 760, 0.78), 1.1)
-            let spacing = 10 * vScale
-            // The cassette also fills the bottom inset, so the slot inside the safe area is shorter.
-            let cassetteSlot = max(
-                min(CassetteView.slotHeight(forWidth: geo.size.width) - geo.safeAreaInsets.bottom, geo.size.height * 0.3),
-                80
-            )
 
             VStack(spacing: 0) {
                 gifArea(topInset: geo.safeAreaInsets.top)
+                    .frame(height: max(geo.size.height * 0.4, 120))
 
-                controls(unit: unit, vScale: vScale, spacing: spacing)
+                controls(unit: unit, vScale: vScale)
                     .padding(.horizontal, min(20, geo.size.width * 0.05))
-                    .padding(.top, spacing * 1.4)
-                    .padding(.bottom, spacing)
-
-                // Placeholder for the cassette; the cassette itself extends into the bottom inset.
-                Color.clear
-                    .frame(height: cassetteSlot)
-                    .background {
-                        CassetteView(
-                            progress: engine.progress,
-                            isPlaying: engine.isPlaying,
-                            speed: engine.speed,
-                            windDirection: engine.windDirection,
-                            title: engine.isLoaded ? engine.metadata.title : "Blank tape"
-                        )
-                        .ignoresSafeArea(edges: .bottom)
-                    }
+                    .frame(maxHeight: .infinity)
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .environment(\.pixelUnit, unit)
@@ -63,11 +44,40 @@ struct PlayerView: View {
         } message: {
             Text(engine.errorMessage ?? "")
         }
+        .alert("Recording Failed", isPresented: exportErrorBinding) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(exporter.errorMessage ?? "")
+        }
+        // Finished tape → system share sheet (Files, AirDrop, messengers…).
+        .sheet(item: $exporter.exported) { file in
+            ShareSheet(url: file.url) { exporter.exported = nil }
+                .presentationDetents([.medium, .large])
+                .ignoresSafeArea()
+        }
+        .sensoryFeedback(.success, trigger: exporter.exported?.id) { _, new in new != nil }
+    }
+
+    /// REC: records a video of the current track (current speed / reverb) over the looping GIF
+    /// on screen — audio only if no GIF is loaded; pressing again cancels.
+    private func toggleRecording() {
+        if exporter.isRecording {
+            exporter.cancel()
+            return
+        }
+        guard let source = engine.sourceURL else { return }
+        exporter.start(
+            source: source,
+            title: engine.metadata.title,
+            speed: engine.speed,
+            reverb: engine.reverb,
+            gif: gifChannel.currentGIF
+        )
     }
 
     // MARK: Sections
 
-    /// Takes all remaining height; the GIF itself runs up under the status bar.
+    /// GIF slot; the GIF itself runs up under the status bar.
     private func gifArea(topInset: CGFloat) -> some View {
         Color.clear
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -80,23 +90,37 @@ struct PlayerView: View {
                 )
                 .ignoresSafeArea(edges: .top)
             }
+            .overlay {
+                if exporter.isRecording {
+                    RecordingOverlay(progress: exporter.progress)
+                        .ignoresSafeArea(edges: .top)
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: exporter.isRecording)
             .overlay(alignment: .bottom) { NeonDivider() }
     }
 
-    private func controls(unit: CGFloat, vScale: CGFloat, spacing: CGFloat) -> some View {
-        VStack(spacing: spacing) {
+    /// Controls separated by equal flexible gaps, so leftover height is spread evenly.
+    private func controls(unit: CGFloat, vScale: CGFloat) -> some View {
+        let minGap = 16 * vScale
+
+        return VStack(spacing: 0) {
+            Spacer(minLength: minGap * 1.5)
+
             SpeakerRow(
                 meter: engine.meter,
                 isPlaying: engine.isPlaying,
-                canRecord: false, // Export arrives in stage 7.
+                canRecord: engine.isLoaded,
+                isRecording: exporter.isRecording,
                 onEject: { isImporterPresented = true },
-                onRecord: {},
-                height: 86 * vScale
+                onRecord: toggleRecording,
+                height: 48 * vScale
             )
 
-            TrackInfoStrip(text: trackText)
+            Spacer(minLength: minGap)
 
-            VStack(spacing: 6 * vScale) {
+            VStack(spacing: 8 * vScale) {
                 SteppedSlider(
                     title: "Speed",
                     value: $engine.speed,
@@ -123,28 +147,39 @@ struct PlayerView: View {
                 )
             }
 
-            TimelineBar(
-                currentTime: engine.currentTime,
-                duration: engine.duration,
-                onSeek: { engine.seek(to: $0) }
-            )
+            Spacer(minLength: minGap)
 
-            VStack(spacing: unit * 3) {
-                NeonBrand()
+            // Now playing, timeline and transport keys as one dot-matrix display block.
+            TrackInfoStrip(text: trackText, scale: 1.1) {
+                VStack(spacing: 20 * vScale) {
+                    TimelineBar(
+                        currentTime: engine.currentTime,
+                        duration: engine.duration,
+                        onSeek: { engine.seek(to: $0) }
+                    )
+                    .padding(.horizontal, unit * 4)
 
-                TransportButtons(
-                    isPlaying: engine.isPlaying,
-                    isEnabled: engine.isLoaded,
-                    onPlayPause: { engine.togglePlayPause() },
-                    onForward: { engine.skip(by: 10) },
-                    onRewind: { engine.skip(by: -10) },
-                    onStop: { engine.stop() },
-                    onWind: { direction in
-                        direction == 0 ? engine.stopWinding() : engine.startWinding(direction)
-                    },
-                    height: 92 * vScale
-                )
+                    TransportButtons(
+                        isPlaying: engine.isPlaying,
+                        isEnabled: engine.isLoaded,
+                        onPlayPause: { engine.togglePlayPause() },
+                        onForward: { engine.skip(by: 10) },
+                        onRewind: { engine.skip(by: -10) },
+                        onStop: { engine.stop() },
+                        onWind: { direction in
+                            direction == 0 ? engine.stopWinding() : engine.startWinding(direction)
+                        },
+                        height: 92 * vScale,
+                        showsHousing: false
+                    )
+                }
             }
+
+            Spacer(minLength: minGap)
+
+            NeonBrand()
+
+            Spacer(minLength: minGap * 1.5)
         }
     }
 
@@ -157,6 +192,13 @@ struct PlayerView: View {
         Binding(
             get: { engine.errorMessage != nil },
             set: { if !$0 { engine.errorMessage = nil } }
+        )
+    }
+
+    private var exportErrorBinding: Binding<Bool> {
+        Binding(
+            get: { exporter.errorMessage != nil },
+            set: { if !$0 { exporter.errorMessage = nil } }
         )
     }
 }
@@ -176,7 +218,7 @@ private struct NeonDivider: View {
     }
 }
 
-/// Model name above the transport, printed in soft neon.
+/// Model name under the transport, printed in soft neon.
 private struct NeonBrand: View {
     @Environment(\.pixelUnit) private var unit
 
@@ -194,7 +236,7 @@ private struct NeonBrand: View {
     }
 }
 
-/// Night-time body: deep indigo gradient, faint pixel stars, and a pink glow behind the cassette.
+/// Night-time body: deep indigo gradient, faint pixel stars, and a soft pink glow at the bottom.
 private struct NightBody: View {
     @Environment(\.displayScale) private var displayScale
 

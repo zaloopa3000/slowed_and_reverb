@@ -12,7 +12,6 @@ struct RecordingOverlay: View {
     var body: some View {
         ZStack {
             Color.black.opacity(0.62)
-            Scanlines().opacity(0.3)
 
             VStack(spacing: unit * 5) {
                 HStack(spacing: unit * 3) {
@@ -72,4 +71,10 @@ struct ShareSheet: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+}
+
+#Preview {
+    RecordingOverlay(progress: 0.42)
+        .frame(height: 300)
+        .playerPreview(padding: 0)
 }

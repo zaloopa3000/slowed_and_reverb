@@ -18,22 +18,24 @@ final class TrackExporter {
 
     @ObservationIgnored private var task: Task<Void, Never>?
 
-    func start(source: URL, title: String, speed: Float, reverb: Float) {
+    /// Records an `.mp4` with the track over the looping `gif`; without a GIF, an `.m4a`.
+    func start(source: URL, title: String, speed: Float, reverb: Float, gif: AnimatedGIF? = nil) {
         guard !isRecording else { return }
         isRecording = true
         progress = 0
         errorMessage = nil
 
         task = Task { [weak self] in
+            let settings = AudioExporter.Settings(speed: speed, reverb: reverb)
+            let report: @Sendable (Double) -> Void = { value in
+                Task { @MainActor in self?.progress = value }
+            }
             do {
-                let url = try await AudioExporter.export(
-                    source: source,
-                    title: title,
-                    settings: .init(speed: speed, reverb: reverb),
-                    progress: { value in
-                        Task { @MainActor in self?.progress = value }
-                    }
-                )
+                let url = if let gif {
+                    try await VideoExporter.export(source: source, title: title, settings: settings, gif: gif, progress: report)
+                } else {
+                    try await AudioExporter.export(source: source, title: title, settings: settings, progress: report)
+                }
                 self?.exported = ExportedFile(url: url)
             } catch is CancellationError {
                 // Cancelled from the REC key — nothing to report.

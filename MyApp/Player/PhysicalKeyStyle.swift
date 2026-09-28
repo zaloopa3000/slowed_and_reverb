@@ -14,6 +14,8 @@ struct PhysicalKeyStyle: ButtonStyle {
     /// Keeps the key partly depressed, like a latched tape-deck Play key.
     var isLatched = false
     var capColor: Color = RetroTheme.plastic
+    /// Called when the finger goes down (true) and up (false) — used for press-and-hold keys.
+    var onPressChange: ((Bool) -> Void)?
 
     func makeBody(configuration: Configuration) -> some View {
         PhysicalKey(
@@ -21,7 +23,8 @@ struct PhysicalKeyStyle: ButtonStyle {
             cornerRadius: cornerRadius,
             thickness: thickness,
             isLatched: isLatched,
-            capColor: capColor
+            capColor: capColor,
+            onPressChange: onPressChange
         )
     }
 }
@@ -32,6 +35,7 @@ private struct PhysicalKey: View {
     let thickness: CGFloat
     let isLatched: Bool
     let capColor: Color
+    let onPressChange: ((Bool) -> Void)?
 
     @Environment(\.isEnabled) private var isEnabled
 
@@ -47,13 +51,14 @@ private struct PhysicalKey: View {
         configuration.label
             .foregroundStyle(
                 LinearGradient(
-                    colors: [Color(white: 0.86), Color(white: 0.66)],
+                    colors: [RetroTheme.lcdText.mix(with: .white, by: 0.45), RetroTheme.lcdText],
                     startPoint: .top,
                     endPoint: .bottom
                 )
             )
-            // Dark lip under the glyph reads as a moulded, raised symbol.
+            // Dark lip under the glyph reads as a moulded symbol; the glow as a neon legend.
             .shadow(color: .black.opacity(0.8), radius: 0.5, y: 1)
+            .shadow(color: RetroTheme.lcdText.opacity(isEnabled ? 0.45 : 0), radius: 4)
             .opacity(isEnabled ? 1 : 0.35)
             .background { face(shape) }
             .brightness(-0.12 * depth)
@@ -78,6 +83,9 @@ private struct PhysicalKey: View {
             }
             .contentShape(shape)
             .animation(.spring(response: 0.13, dampingFraction: 0.55), value: depth)
+            .onChange(of: configuration.isPressed) { _, isPressed in
+                onPressChange?(isPressed)
+            }
             // Heavy "thunk" on press, light "click" on release.
             .sensoryFeedback(trigger: configuration.isPressed) { _, isPressed in
                 isPressed

@@ -1,34 +1,45 @@
 import SwiftUI
 
-/// Dot-matrix strip with "♥ TITLE — ARTIST ♥", scrolling in pixel steps when it doesn't fit.
-struct TrackInfoStrip: View {
+/// Dot-matrix "now playing" block: "♥ TITLE — ARTIST ♥" (scrolling in pixel steps when it
+/// doesn't fit) with an optional footer — the timeline — inside the same display.
+struct TrackInfoStrip<Footer: View>: View {
     let text: String
+    /// Size multiplier for the title text.
+    var scale: CGFloat = 1
+    @ViewBuilder var footer: () -> Footer
 
     @Environment(\.pixelUnit) private var unit
 
     var body: some View {
-        let pixel = unit
-        HStack(spacing: pixel * 4) {
-            PixelText("♥", pixel: pixel)
-            DotMatrixMarquee(text: text, pixel: pixel)
-            PixelText("♥", pixel: pixel)
+        let pixel = unit * scale
+        VStack(spacing: unit * 3) {
+            HStack(spacing: pixel * 3) {
+                PixelText("♥", pixel: pixel)
+                DotMatrixMarquee(text: text, pixel: pixel)
+                PixelText("♥", pixel: pixel)
+            }
+            .foregroundStyle(RetroTheme.lcdText)
+            .lcdGlow()
+            .padding(.horizontal, unit * 4)
+            .padding(.top, unit * 2)
+
+            footer()
         }
-        .foregroundStyle(RetroTheme.lcdText)
-        .lcdGlow()
-        .padding(.horizontal, pixel * 6)
-        .padding(.vertical, pixel * 4)
+        .padding(.horizontal, unit * 4)
+        .padding(.top, unit * 6)
+        .padding(.bottom, unit * 3.5)
         .background {
-            PixelNotchedRect(step: pixel, steps: 2)
+            PixelNotchedRect(step: unit, steps: 2)
                 .fill(RetroTheme.lcdGlass.mix(with: .black, by: 0.35))
                 .overlay {
                     // Unlit dot grid of the matrix display.
-                    DotGrid(pitch: pixel)
+                    DotGrid(pitch: unit)
                         .fill(Color.white.opacity(0.05))
-                        .padding(pixel * 2)
+                        .padding(unit * 2)
                 }
                 .overlay {
-                    PixelNotchedRect(step: pixel, steps: 2)
-                        .stroke(Color.black.opacity(0.75), lineWidth: pixel)
+                    PixelNotchedRect(step: unit, steps: 2)
+                        .stroke(Color.black.opacity(0.75), lineWidth: unit)
                 }
                 // Light metal lip under the recess.
                 .shadow(color: .white.opacity(0.15), radius: 0, y: 1)
@@ -96,4 +107,16 @@ private struct DotMatrixMarquee: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(text)
     }
+}
+
+#Preview("Title only") {
+    TrackInfoStrip(text: "Justin Bieber — Yukon", scale: 1.33) { EmptyView() }
+        .playerPreview()
+}
+
+#Preview("With timeline") {
+    TrackInfoStrip(text: "A very long track title that has to scroll — Artist", scale: 1.33) {
+        TimelineBar(currentTime: 42, duration: 180, onSeek: { _ in })
+    }
+    .playerPreview()
 }
